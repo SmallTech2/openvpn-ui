@@ -48,6 +48,10 @@ install_radio(){
   [[ ! -f /etc/radio-vpn-deployed ]] || die 'Deploiement deja effectue.'
   [[ "$RELEASE_TAG" =~ ^[a-zA-Z0-9._-]+$ && "$RELEASE_TAG" != radio-v1 ]] || die 'Utiliser une Release de recette, pas radio-v1.'
   [[ -z "$SOURCE_REF" || ( "$SOURCE_REF" =~ ^[a-zA-Z0-9._/-]+$ && "$SOURCE_REF" != *..* ) ]] || die 'Reference Git invalide.'
+  log 'Configuration du clavier : selectionner Francais (AZERTY) dans l assistant'
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends keyboard-configuration
+  dpkg-reconfigure keyboard-configuration
   require_password 'Mot de passe technicien'; local technician_pw="$REPLY"; unset REPLY
   require_password 'Mot de passe admin OpenVPN UI' 12 '^[a-zA-Z0-9._@+=,:!-]+$'; local gui_pw="$REPLY"; unset REPLY
   read -r -p 'Cle SSH PUBLIQUE ED25519 du poste administrateur (obligatoire) : ' pubkey </dev/tty
