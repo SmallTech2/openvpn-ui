@@ -65,6 +65,8 @@ class PKILifecycle(unittest.TestCase):
             script("renew.sh", "studio1", "10.1.42.7", old_serial)
             new_serial = serial(issued)
             self.assertNotEqual(old_serial, new_serial)
+            renewed_cert = root / "after-renewal.crt"
+            shutil.copy(issued, renewed_cert)
             script("revoke.sh", "studio1", old_serial)
             script("rmcert.sh", "studio1", old_serial)
             self.assertTrue((ovpn / "clients/studio1.ovpn").exists(), "valid renewed profile was deleted")
@@ -78,7 +80,8 @@ class PKILifecycle(unittest.TestCase):
             index = (rsa / "pki/index.txt").read_text()
             for number in (old_serial, new_serial):
                 self.assertTrue(any(line.startswith("R\t") and line.split("\t")[3] == number for line in index.splitlines()))
-            for certificate in (old_cert, issued):
+            # Easy-RSA deplace les certificats revoques : verifier les copies conservees.
+            for certificate in (old_cert, renewed_cert):
                 rejected = run("openssl", "verify", "-crl_check", "-CAfile", str(rsa / "pki/ca.crt"),
                                "-CRLfile", str(rsa / "pki/crl.pem"), str(certificate), ok=False)
                 self.assertIn("certificate revoked", rejected.stderr.lower())
