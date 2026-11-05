@@ -21,12 +21,14 @@ cleanup(){
   return "$status"
 }
 require_password(){
-  local one two
+  local one two minimum="${2:-8}" pattern="${3:-}"
+  local LC_ALL=C.UTF-8
   while :; do
-    read -r -s -p "$1 (12 caracteres min.) : " one </dev/tty; printf '\n' >/dev/tty
-    read -r -s -p 'Confirmer : ' two </dev/tty; printf '\n' >/dev/tty
+    IFS= read -r -s -p "$1 ($minimum caracteres min.) : " one </dev/tty; printf '\n' >/dev/tty
+    IFS= read -r -s -p 'Confirmer : ' two </dev/tty; printf '\n' >/dev/tty
     [[ "$one" == "$two" ]] || { echo 'Saisies differentes.'; continue; }
-    [[ ${#one} -ge 12 && "$one" =~ ^[a-zA-Z0-9._@+=,:!-]+$ ]] || { echo 'Mot de passe trop court ou caracteres non autorises.'; continue; }
+    [[ ${#one} -ge $minimum ]] || { echo 'Mot de passe trop court.'; continue; }
+    [[ -z "$pattern" || "$one" =~ $pattern ]] || { echo 'Caracteres non autorises.'; continue; }
     REPLY="$one"; return
   done
 }
@@ -47,7 +49,7 @@ install_radio(){
   [[ "$RELEASE_TAG" =~ ^[a-zA-Z0-9._-]+$ && "$RELEASE_TAG" != radio-v1 ]] || die 'Utiliser une Release de recette, pas radio-v1.'
   [[ -z "$SOURCE_REF" || ( "$SOURCE_REF" =~ ^[a-zA-Z0-9._/-]+$ && "$SOURCE_REF" != *..* ) ]] || die 'Reference Git invalide.'
   require_password 'Mot de passe technicien'; local technician_pw="$REPLY"; unset REPLY
-  require_password 'Mot de passe admin OpenVPN UI'; local gui_pw="$REPLY"; unset REPLY
+  require_password 'Mot de passe admin OpenVPN UI' 12 '^[a-zA-Z0-9._@+=,:!-]+$'; local gui_pw="$REPLY"; unset REPLY
   read -r -p 'Cle SSH PUBLIQUE ED25519 du poste administrateur (obligatoire) : ' pubkey </dev/tty
   [[ "$pubkey" =~ ^ssh-ed25519[[:space:]]+[A-Za-z0-9+/=]+([[:space:]].*)?$ ]] || die 'Cle ED25519 invalide.'
   read -r -p 'Organisation PKI [Radio Bonheur] : ' org </dev/tty; org="${org:-Radio Bonheur}"

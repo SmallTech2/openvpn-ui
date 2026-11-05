@@ -28,6 +28,9 @@ Les erreurs importantes provoquent un statut non nul, sans message de succes.
 ## Acces et protection SSH
 
 Le compte `technicien` dispose de sudo avec mot de passe et de la cle fournie.
+Sur `main`, son mot de passe accepte tous les caracteres sur une ligne (espaces compris),
+avec huit caracteres minimum. Telecharger le script depuis `main` pour cette modification ;
+le script historique du tag `radio-build-test2` conserve sa regle initiale.
 La configuration SSH est validee avant rechargement. Les mots de passe SSH ne sont desactives
 que si le journal du boot prouve l'utilisation de cette cle sur la connexion courante.
 Sinon ils restent actifs : cette validation client ne peut pas etre deduite de la seule presence d'une cle publique.
