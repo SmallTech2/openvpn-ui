@@ -68,6 +68,8 @@ class PKILifecycle(unittest.TestCase):
             script("revoke.sh", "studio1", old_serial)
             script("rmcert.sh", "studio1", old_serial)
             self.assertTrue((ovpn / "clients/studio1.ovpn").exists(), "valid renewed profile was deleted")
+            run("openssl", "verify", "-crl_check", "-CAfile", str(rsa / "pki/ca.crt"),
+                "-CRLfile", str(rsa / "pki/crl.pem"), str(issued))
             script("revoke.sh", "studio1", new_serial)
             script("rmcert.sh", "studio1", new_serial)
             self.assertFalse((ovpn / "clients/studio1.ovpn").exists())
@@ -76,10 +78,10 @@ class PKILifecycle(unittest.TestCase):
             index = (rsa / "pki/index.txt").read_text()
             for number in (old_serial, new_serial):
                 self.assertTrue(any(line.startswith("R\t") and line.split("\t")[3] == number for line in index.splitlines()))
-            run("openssl", "verify", "-crl_check", "-CAfile", str(rsa / "pki/ca.crt"),
-                "-CRLfile", str(rsa / "pki/crl.pem"), str(old_cert), ok=False)
-            run("openssl", "verify", "-crl_check", "-CAfile", str(rsa / "pki/ca.crt"),
-                "-CRLfile", str(rsa / "pki/crl.pem"), str(issued), ok=False)
+            for certificate in (old_cert, issued):
+                rejected = run("openssl", "verify", "-crl_check", "-CAfile", str(rsa / "pki/ca.crt"),
+                               "-CRLfile", str(rsa / "pki/crl.pem"), str(certificate), ok=False)
+                self.assertIn("certificate revoked", rejected.stderr.lower())
 
 
 if __name__ == "__main__":
