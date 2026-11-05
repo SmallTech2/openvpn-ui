@@ -47,7 +47,7 @@ func TestRadioDeploymentDefaults(t *testing.T) {
 			}
 		})
 	}
-	web.AppConfig.Set("RadioVpnNetwork", "10.4.0.0")
+	web.AppConfig.Set("RadioVpnNetwork", "10.4.0.1/16")
 	if _, err := RadioNetwork(); err == nil {
 		t.Fatal("unsupported network accepted")
 	}

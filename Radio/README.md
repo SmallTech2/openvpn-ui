@@ -1,24 +1,32 @@
 # Radio Bonheur - deploiement natif Debian 13
 
-Trois VPS AMD64 independants : `10.1.0.0/16`, `10.2.0.0/16`, `10.3.0.0/16`.
+VPS AMD64 independants, avec un reseau IPv4 prive configurable en CIDR.
+Nos choix actuels sont `10.1.0.0/16`, `10.2.0.0/16` et `10.3.0.0/16`.
 OpenVPN CE, OpenVPN UI precompile, Easy-RSA, systemd et nftables. Aucun Docker ni Go sur le VPS.
 Tous les clients ont une IPv4 fixe ; `client-to-client` est actif, sans `redirect-gateway`.
 
 ## Premiere recette
 
-La Release requise est `radio-build-test2`, compilee APRES ces corrections. `radio-build-test1` est incompatible.
+La Release requise pour les CIDR configurables est `radio-build-test3`.
 Ne reinitialiser aucun VPS d'exploitation avant sauvegarde et validation de la Release de recette.
 Sur le VPS Debian 13 vierge, avec un terminal interactif :
 
 ```sh
 curl --fail --location --proto '=https' --proto-redir '=https' \
-  https://raw.githubusercontent.com/SmallTech2/openvpn-ui/radio-build-test2/Radio/deploy-vps.sh \
+  https://raw.githubusercontent.com/SmallTech2/openvpn-ui/main/Radio/deploy-vps.sh \
   -o deploy-vps.sh
-sudo bash deploy-vps.sh install
+sudo bash deploy-vps.sh
 ```
 
-L'IPv4 et le reseau peuvent aussi etre passes en arguments :
-`sudo bash deploy-vps.sh install IP_PUBLIQUE 10.1`.
+Le script propose l'IPv4 publique detectee (modifiable) et demande le reseau CIDR.
+Il accepte les sous-reseaux RFC1918 de /16 a /29, limites de la directive serveur OpenVPN,
+et refuse une adresse d'hote ou un chevauchement avec les routes presentes sur le VPS.
+Le serveur VPN utilise la premiere adresse utilisable : reseau + 1
+(par exemple `192.168.42.0/24` donne `192.168.42.1`).
+Les conflits avec les reseaux distants des futurs clients restent a verifier par l'administrateur.
+Un recapitulatif et une confirmation precedent toute modification systeme, y compris le clavier.
+Une seconde confirmation precede l'installation apres la saisie des autres parametres.
+Les anciennes commandes avec arguments restent compatibles.
 Le script demande les deux mots de passe, la cle PUBLIQUE ED25519 du poste administrateur,
 l'organisation et l'email PKI. Ne pas fournir une cle privee ni la cle reservee a l'acces GitHub.
 Il initialise la base GUI, les configurations et une PKI neuve, puis demarre les services.
@@ -28,9 +36,8 @@ Les erreurs importantes provoquent un statut non nul, sans message de succes.
 ## Acces et protection SSH
 
 Le compte `technicien` dispose de sudo avec mot de passe et de la cle fournie.
-Sur `main`, son mot de passe accepte tous les caracteres sur une ligne (espaces compris),
-avec huit caracteres minimum. Telecharger le script depuis `main` pour cette modification ;
-le script historique du tag `radio-build-test2` conserve sa regle initiale.
+Les deux mots de passe acceptent tous les caracteres sur une ligne (espaces compris),
+avec huit caracteres minimum, saisie masquee et confirmation.
 La configuration SSH est validee avant rechargement. Les mots de passe SSH ne sont desactives
 que si le journal du boot prouve l'utilisation de cette cle sur la connexion courante.
 Sinon ils restent actifs : cette validation client ne peut pas etre deduite de la seule presence d'une cle publique.
@@ -50,7 +57,7 @@ et immediat sur erreur du script, restaure les anciennes regles/configuration et
 Le retour arriere est annule uniquement apres les controles locaux des services, du HTTP et de SSH.
 Le pare-feu de l'hebergeur doit egalement autoriser SSH et UDP 1194 ; ne pas y ouvrir TCP 8080.
 
-GUI : `http://10.N.0.1:8080` depuis le VPN, ou tunnel depuis le PC :
+GUI : `http://ADRESSE_SERVEUR_VPN:8080` depuis le VPN, ou tunnel depuis le PC :
 `ssh -L 8080:127.0.0.1:8080 technicien@IP_PUBLIQUE`, puis `http://127.0.0.1:8080`.
 Le management OpenVPN reste strictement sur `127.0.0.1:2080`.
 

@@ -3,6 +3,7 @@ package models
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/beego/beego/v2/server/web"
 	clientconfig "github.com/d3vilh/openvpn-server-config/client/client-config"
@@ -16,15 +17,27 @@ func RadioNetwork() (*net.IPNet, error) {
 	if network == "" {
 		return nil, nil
 	}
-	if network != "10.1.0.0" && network != "10.2.0.0" && network != "10.3.0.0" {
-		return nil, fmt.Errorf("RadioVpnNetwork doit etre 10.1.0.0, 10.2.0.0 ou 10.3.0.0")
+	// Les installations existantes sans prefixe conservent leur masque /16.
+	if !strings.Contains(network, "/") {
+		network += "/16"
+	}
+	ip, subnet, err := net.ParseCIDR(network)
+	if err != nil || ip.To4() == nil {
+		return nil, fmt.Errorf("RadioVpnNetwork doit etre un reseau IPv4 prive en CIDR")
+	}
+	ones, _ := subnet.Mask.Size()
+	last := append(net.IP(nil), subnet.IP...)
+	for i := range last {
+		last[i] |= ^subnet.Mask[i]
+	}
+	if !ip.Equal(subnet.IP) || !ip.IsPrivate() || !last.IsPrivate() || ones < 16 || ones > 29 {
+		return nil, fmt.Errorf("RadioVpnNetwork doit etre une adresse reseau RFC1918, de /16 a /29 (limites OpenVPN)")
 	}
 	publicIP := net.ParseIP(web.AppConfig.DefaultString("RadioPublicIP", ""))
 	if publicIP == nil || publicIP.To4() == nil || publicIP.IsUnspecified() || publicIP.IsLoopback() || publicIP.IsMulticast() {
 		return nil, fmt.Errorf("RadioPublicIP doit contenir l'IPv4 du VPS")
 	}
-	_, subnet, err := net.ParseCIDR(network + "/16")
-	return subnet, err
+	return subnet, nil
 }
 
 // Ces valeurs sont aussi appliquees aux sauvegardes GUI pour eviter les anciens defauts.
@@ -35,7 +48,7 @@ func ApplyRadioServerConfig(c *serverconfig.Config) error {
 	}
 	c.Device = "tun0"
 	c.OVConfigTopology = "subnet"
-	c.Server = "server " + subnet.IP.String() + " 255.255.0.0 nopool"
+	c.Server = "server " + subnet.IP.String() + " " + net.IP(subnet.Mask).String() + " nopool"
 	c.Route, c.PushRoute, c.RedirectGW = "", "", ""
 	c.DNSServer1, c.DNSServer2 = "", ""
 	c.CustomOptTwo = "client-to-client\nccd-exclusive"

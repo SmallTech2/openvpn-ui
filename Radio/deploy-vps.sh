@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Radio Bonheur - Debian 13 AMD64, OpenVPN natif. Aucun VPS n'est modifie hors execution explicite.
-# Usage : sudo bash deploy-vps.sh [install [IP_PUBLIQUE [10.N]]]
+# Usage : sudo bash deploy-vps.sh
 set -Eeuo pipefail
 umask 077
 REPO='SmallTech2/openvpn-ui'
-RELEASE_TAG="${RADIO_RELEASE_TAG:-radio-build-test2}"
+RELEASE_TAG="${RADIO_RELEASE_TAG:-radio-build-test3}"
 SOURCE_REF="${RADIO_SOURCE_REF:-}"
 INSTALL_ROOT='/opt/openvpn-ui-runtime'
 TMP=''
@@ -33,32 +33,121 @@ require_password(){
 }
 fetch(){ curl --fail --silent --show-error --location --retry 3 --proto '=https' --proto-redir '=https' --tlsv1.2 "$1" -o "$2"; }
 
+ipv4_number(){
+  local part value=0
+  local -a parts
+  [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+  IFS=. read -r -a parts <<< "$1"
+  for part in "${parts[@]}"; do
+    [[ "$part" == 0 || "$part" != 0* ]] || return 1
+    (( 10#$part <= 255 )) || return 1
+    value=$(( (value << 8) | 10#$part ))
+  done
+  REPLY=$value
+}
+ipv4_text(){ printf '%d.%d.%d.%d' "$(( ($1 >> 24) & 255 ))" "$(( ($1 >> 16) & 255 ))" "$(( ($1 >> 8) & 255 ))" "$(( $1 & 255 ))"; }
+private_ipv4(){
+  (( ($1 >= 0x0a000000 && $1 <= 0x0affffff) ||
+     ($1 >= 0xac100000 && $1 <= 0xac1fffff) ||
+     ($1 >= 0xc0a80000 && $1 <= 0xc0a8ffff) ))
+}
+public_ipv4(){
+  ipv4_number "$1" || return 1
+  ! private_ipv4 "$REPLY" || return 1
+  (( REPLY >= 0x01000000 && REPLY < 0xe0000000 &&
+     (REPLY >> 24) != 127 && (REPLY >> 16) != 0xa9fe &&
+     !(REPLY >= 0x64400000 && REPLY <= 0x647fffff) ))
+}
+vpn_network(){
+  local address bits mask last
+  [[ "$1" =~ ^([^/]+)/([0-9]{1,2})$ ]] || return 1
+  address="${BASH_REMATCH[1]}"; bits=$((10#${BASH_REMATCH[2]}))
+  # Limites de la directive OpenVPN "server" avec une interface tun.
+  (( bits >= 16 && bits <= 29 )) || return 1
+  ipv4_number "$address" || return 1
+  address=$REPLY; mask=$(( (0xffffffff << (32-bits)) & 0xffffffff ))
+  (( (address & mask) == address )) || return 1
+  last=$((address | (0xffffffff ^ mask)))
+  private_ipv4 "$address" && private_ipv4 "$last" || return 1
+  # Le serveur utilise toujours la premiere adresse utilisable (reseau + 1).
+  REPLY="$(ipv4_text "$address")/$bits $(ipv4_text "$mask") $(ipv4_text "$((address+1))") $bits"
+}
+network_conflict(){
+  local candidate="$1" bits base end route rest route_base route_bits route_end
+  bits="${candidate#*/}"; ipv4_number "${candidate%/*}"; base=$REPLY
+  end=$((base | (0xffffffff >> bits)))
+  while read -r route rest; do
+    [[ "$route" != default && "$route" != 0.0.0.0/0 ]] || continue
+    [[ "$route" == */* ]] || route="$route/32"
+    route_bits="${route#*/}"
+    [[ "$route_bits" =~ ^[0-9]+$ ]] && (( route_bits <= 32 )) || continue
+    ipv4_number "${route%/*}" || continue
+    route_base=$REPLY; route_end=$((route_base | (0xffffffff >> route_bits)))
+    if (( base <= route_end && route_base <= end )); then
+      echo "Reseau en conflit avec la route existante $route." >&2; return 0
+    fi
+  done <<< "$2"
+  return 1
+}
+confirm_install(){
+  local answer
+  read -r -p 'Commencer les modifications systeme ? [oui/N] : ' answer </dev/tty
+  [[ "$answer" == oui || "$answer" == OUI ]]
+}
+
 install_radio(){
-  local public_ip="${1:-}" net="${2:-}" pubkey org email
-  [[ -n "$public_ip" ]] || read -r -p 'IPv4 publique du VPS : ' public_ip </dev/tty
-  [[ -n "$net" ]] || read -r -p 'Reseau (10.1, 10.2 ou 10.3) : ' net </dev/tty
-  [[ "$public_ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || die 'IPv4 du VPS invalide.'
-  local octet
-  IFS=. read -r -a ip_parts <<< "$public_ip"
-  for octet in "${ip_parts[@]}"; do (( 10#$octet <= 255 )) || die 'IPv4 du VPS invalide.'; done
-  (( 10#${ip_parts[0]} > 0 && 10#${ip_parts[0]} < 224 && 10#${ip_parts[0]} != 127 )) || die 'IPv4 du VPS invalide.'
-  [[ "$net" =~ ^10\.[123]$ ]] || die 'Reseau attendu : 10.1, 10.2 ou 10.3.'
+  local public_ip="${1:-}" net="${2:-}" pubkey org email detected='' routes mask server_ip prefix
   [[ ! -e "$INSTALL_ROOT" && ! -e /etc/openvpn/server.conf && ! -e /etc/openvpn/pki ]] || die 'Installation existante detectee. Refus de remplacer.'
   [[ ! -f /etc/radio-vpn-deployed ]] || die 'Deploiement deja effectue.'
   [[ "$RELEASE_TAG" =~ ^[a-zA-Z0-9._-]+$ && "$RELEASE_TAG" != radio-v1 ]] || die 'Utiliser une Release de recette, pas radio-v1.'
   [[ -z "$SOURCE_REF" || ( "$SOURCE_REF" =~ ^[a-zA-Z0-9._/-]+$ && "$SOURCE_REF" != *..* ) ]] || die 'Reference Git invalide.'
-  log 'Configuration du clavier : selectionner Francais (AZERTY) dans l assistant'
-  apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends keyboard-configuration
-  dpkg-reconfigure keyboard-configuration
-  require_password 'Mot de passe technicien'; local technician_pw="$REPLY"; unset REPLY
-  require_password 'Mot de passe admin OpenVPN UI'; local gui_pw="$REPLY"; unset REPLY
+  command -v ip >/dev/null || die 'La commande ip (iproute2) est necessaire pour verifier les routes avant installation.'
+  routes=$(ip -4 route show table all) || die 'Impossible de lire les routes IPv4.'
+  detected=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="src") {print $(i+1); exit}}') || true
+  if ! public_ipv4 "$detected"; then
+    detected=''
+    if command -v curl >/dev/null; then
+      detected=$(curl -4 --fail --silent --show-error --max-time 5 --proto '=https' https://api.ipify.org 2>/dev/null) || detected=''
+    fi
+    public_ipv4 "$detected" || detected=''
+  fi
+  while :; do
+    if [[ -z "$public_ip" ]]; then
+      read -r -p "IPv4 publique du VPS${detected:+ [$detected]} : " public_ip </dev/tty
+      public_ip="${public_ip:-$detected}"
+    fi
+    public_ipv4 "$public_ip" && break
+    echo 'IPv4 publique invalide.'; public_ip=''
+  done
+  # Compatibilite des anciennes commandes ; la saisie interactive utilise le CIDR.
+  [[ ! "$net" =~ ^10\.[123]$ ]] || net="$net.0.0/16"
+  while :; do
+    [[ -n "$net" ]] || read -r -p 'Reseau VPN prive en CIDR (ex. 10.3.0.0/16) : ' net </dev/tty
+    if vpn_network "$net"; then
+      read -r net mask server_ip prefix <<< "$REPLY"
+      if ! network_conflict "$net" "$routes"; then break; fi
+    else
+      echo 'Adresse reseau RFC1918 attendue, prefixe /16 a /29 (limites OpenVPN).'
+    fi
+    net=''
+  done
   read -r -p 'Cle SSH PUBLIQUE ED25519 du poste administrateur (obligatoire) : ' pubkey </dev/tty
   [[ "$pubkey" =~ ^ssh-ed25519[[:space:]]+[A-Za-z0-9+/=]+([[:space:]].*)?$ ]] || die 'Cle ED25519 invalide.'
   read -r -p 'Organisation PKI [Radio Bonheur] : ' org </dev/tty; org="${org:-Radio Bonheur}"
   read -r -p 'Email PKI [contact@radiobonheur.com] : ' email </dev/tty; email="${email:-contact@radiobonheur.com}"
   [[ "$org" =~ ^[a-zA-Z0-9\ ._@+-]+$ ]] || die 'Organisation : lettres, chiffres, espaces et ._@+- uniquement.'
   [[ "$email" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+$ ]] || die 'Email invalide.'
+  printf '\nIPv4 publique : %s\nReseau VPN : %s\nServeur VPN : %s (premiere adresse utilisable)\nRelease : %s\n' "$public_ip" "$net" "$server_ip" "$RELEASE_TAG"
+  echo 'Etapes : clavier, mots de passe, cle SSH et identite PKI, puis installation native.'
+  confirm_install || { echo 'Installation annulee, aucune modification systeme.'; return 0; }
+  log 'Configuration du clavier : selectionner Francais (AZERTY) dans l assistant'
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends keyboard-configuration
+  dpkg-reconfigure keyboard-configuration
+  require_password 'Mot de passe technicien'; local technician_pw="$REPLY"; unset REPLY
+  require_password 'Mot de passe admin OpenVPN UI'; local gui_pw="$REPLY"; unset REPLY
+  printf '\nIPv4 publique : %s\nReseau VPN : %s\nServeur VPN : %s\nOrganisation : %s\nEmail : %s\n' "$public_ip" "$net" "$server_ip" "$org" "$email"
+  confirm_install || { echo 'Installation annulee apres configuration du clavier.'; return 0; }
 
   log 'Dependances Debian (sans compilation sur le VPS)'
   export DEBIAN_FRONTEND=noninteractive
@@ -121,7 +210,7 @@ install_radio(){
   install -m 755 "$TMP/bin/openvpn-ui" "$INSTALL_ROOT/openvpn-ui"
   cp -a "$TMP/bin/static" "$TMP/bin/views" "$TMP/bin/swagger" "$INSTALL_ROOT/"
   install -m 644 "$TMP/src/LICENSE" "$INSTALL_ROOT/LICENSE"
-  sed -e "s/@PUBLIC_IP@/$public_ip/g" -e "s/@VPN_NETWORK@/$net.0.0/g" \
+  sed -e "s/@PUBLIC_IP@/$public_ip/g" -e "s|@VPN_NETWORK@|$net|g" \
     -e "s/@PKI_ORG@/$org/g" -e "s/@PKI_EMAIL@/$email/g" \
     "$TMP/src/Radio/config/app.conf" > "$INSTALL_ROOT/conf/app.conf"
   for f in openvpn-server-config.tpl openvpn-client-config.tpl easyrsa-vars.tpl; do
@@ -158,7 +247,7 @@ install_radio(){
   activate_firewall
   systemctl enable --now openvpn@server.service
   systemctl is-active --quiet openvpn@server.service || die 'OpenVPN ne demarre pas.'
-  ip -4 address show tun0 | grep -Fq "inet $net.0.1/16" || die 'Adresse tun0 incorrecte.'
+  ip -4 address show tun0 | grep -Fq "inet $server_ip/$prefix " || die 'Adresse tun0 incorrecte.'
   ss -lun | grep -q ':1194 ' || die 'UDP 1194 absent.'
   systemctl enable --now openvpn-ui.service
   systemctl is-active --quiet openvpn-ui.service || die 'OpenVPN UI ne demarre pas.'
@@ -177,9 +266,9 @@ install_radio(){
   fi
   printf 'release_tag=%s\nrelease_source_commit=%s\npublic_ip=%s\nnetwork=%s\n' "$RELEASE_TAG" "$compiled_commit" "$public_ip" "$net" > /etc/radio-vpn-deployed
   log 'Installation terminee : OpenVPN actif, UI protegee, CRL planifiee.'
-  echo "GUI depuis le VPN : http://$net.0.1:8080"
+  echo "GUI depuis le VPN : http://$server_ip:8080"
   echo "Tunnel SSH : ssh -L 8080:127.0.0.1:8080 technicien@$public_ip"
-  echo 'Creer les clients avec une IPv4 fixe du /16. Aucun redirect-gateway.'
+  echo "Creer les clients avec une IPv4 fixe du reseau $net. Aucun redirect-gateway."
 }
 
 install_crl_timer(){
@@ -256,8 +345,8 @@ main(){
   trap 'echo "Echec du deploiement, ligne $LINENO." >&2' ERR
   trap 'exit 1' HUP INT TERM
   case "${1:-install}" in
-    install) [[ $# -eq 0 ]] || shift; install_radio "$@" ;;
-    *) die "Usage : sudo bash $0 [install [IP_PUBLIQUE [10.N]]]" ;;
+    install) [[ $# -eq 0 ]] || shift; [[ $# -le 2 ]] || die "Usage : sudo bash $0"; install_radio "$@" ;;
+    *) die "Usage : sudo bash $0" ;;
   esac
 }
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then main "$@"; fi
