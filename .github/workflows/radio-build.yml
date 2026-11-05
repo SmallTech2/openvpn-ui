@@ -62,7 +62,12 @@ jobs:
             https://github.com/OpenVPN/easy-rsa/archive/refs/tags/v3.2.2.tar.gz -o "$RUNNER_TEMP/easyrsa.tgz"
           mkdir "$RUNNER_TEMP/easyrsa"
           tar -xzf "$RUNNER_TEMP/easyrsa.tgz" -C "$RUNNER_TEMP/easyrsa" --strip-components=1
-          EASYRSA_TEST_SOURCE="$RUNNER_TEMP/easyrsa/easyrsa3" python3 -B Radio/tests/test_pki.py -v
+          if ! EASYRSA_TEST_SOURCE="$RUNNER_TEMP/easyrsa/easyrsa3" python3 -B Radio/tests/test_pki.py -v > "$RUNNER_TEMP/radio-pki.log" 2>&1; then
+            cat "$RUNNER_TEMP/radio-pki.log"
+            python3 -c 'import pathlib,sys; message=pathlib.Path(sys.argv[1]).read_text()[-6000:]; print("::error title=PKI lifecycle::"+message.replace("%","%25").replace("\r","%0D").replace("\n","%0A"))' "$RUNNER_TEMP/radio-pki.log"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/radio-pki.log"
       - name: Package runtime and verify checksums
         run: |
           bash Radio/package-release.sh dist/openvpn-ui
