@@ -7,6 +7,7 @@ REPO='SmallTech2/openvpn-ui'
 RELEASE_TAG="${RADIO_RELEASE_TAG:-radio-build-test3}"
 SOURCE_REF="${RADIO_SOURCE_REF:-}"
 INSTALL_ROOT='/opt/openvpn-ui-runtime'
+PREPARATION_STATE='/var/lib/radio-vpn/debian-upgrade-boot-id'
 TMP=''
 FIREWALL_PENDING=false
 log(){ printf '\n==> %s\n' "$*"; }
@@ -95,12 +96,41 @@ confirm_install(){
   [[ "$answer" == oui || "$answer" == OUI ]]
 }
 
+prepare_debian(){
+  local boot_id prepared_boot_id
+  read -r boot_id < /proc/sys/kernel/random/boot_id
+  if [[ -f "$PREPARATION_STATE" ]]; then
+    read -r prepared_boot_id < "$PREPARATION_STATE"
+    [[ -n "$prepared_boot_id" ]] || die 'Etat de preparation Debian invalide.'
+    if [[ "$prepared_boot_id" != "$boot_id" ]]; then
+      log 'Debian deja mis a niveau et redemarre : poursuite de l installation'
+      return 0
+    fi
+    echo 'La mise a niveau est terminee, mais le VPS doit encore redemarrer.'
+    confirm_install || { echo 'Redemarrage reporte.'; exit 0; }
+  else
+    log 'Preparation Debian : full-upgrade, autoremove --purge, puis redemarrage'
+    echo 'Apres reconnexion SSH, relancer : sudo bash deploy-vps.sh'
+    confirm_install || { echo 'Preparation annulee, aucune modification systeme.'; exit 0; }
+    DEBIAN_FRONTEND=noninteractive apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::=--force-confold full-upgrade
+    DEBIAN_FRONTEND=noninteractive apt-get -y autoremove --purge
+    # Ecrit uniquement apres succes ; le boot_id permet de verifier le redemarrage.
+    install -d -m 700 "$(dirname "$PREPARATION_STATE")"
+    printf '%s\n' "$boot_id" > "$PREPARATION_STATE"
+  fi
+  echo 'Redemarrage du VPS. Apres reconnexion SSH, relancer : sudo bash deploy-vps.sh'
+  systemctl reboot
+  exit 0
+}
+
 install_radio(){
   local public_ip="${1:-}" net="${2:-}" pubkey org email detected='' routes mask server_ip prefix
   [[ ! -e "$INSTALL_ROOT" && ! -e /etc/openvpn/server.conf && ! -e /etc/openvpn/pki ]] || die 'Installation existante detectee. Refus de remplacer.'
   [[ ! -f /etc/radio-vpn-deployed ]] || die 'Deploiement deja effectue.'
   [[ "$RELEASE_TAG" =~ ^[a-zA-Z0-9._-]+$ && "$RELEASE_TAG" != radio-v1 ]] || die 'Utiliser une Release de recette, pas radio-v1.'
   [[ -z "$SOURCE_REF" || ( "$SOURCE_REF" =~ ^[a-zA-Z0-9._/-]+$ && "$SOURCE_REF" != *..* ) ]] || die 'Reference Git invalide.'
+  prepare_debian
   command -v ip >/dev/null || die 'La commande ip (iproute2) est necessaire pour verifier les routes avant installation.'
   routes=$(ip -4 route show table all) || die 'Impossible de lire les routes IPv4.'
   detected=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="src") {print $(i+1); exit}}') || true

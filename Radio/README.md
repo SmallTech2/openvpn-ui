@@ -18,19 +18,28 @@ curl --fail --location --proto '=https' --proto-redir '=https' \
 sudo bash deploy-vps.sh
 ```
 
-Le script propose l'IPv4 publique detectee (modifiable) et demande le reseau CIDR.
+Au premier lancement, apres confirmation, le script execute `apt-get update`,
+`apt-get full-upgrade` (en conservant les fichiers de configuration locaux),
+puis `apt-get autoremove --purge`, et redemarre le VPS.
+Apres reconnexion SSH, relancer **la meme commande** : `sudo bash deploy-vps.sh`.
+La reussite de la preparation et l'identifiant du demarrage sont conserves dans
+`/var/lib/radio-vpn/debian-upgrade-boot-id` : le script exige un redemarrage effectif,
+puis passe la mise a niveau deja terminee. Aucune reprise automatique ni sauvegarde de mot de passe.
+Une erreur APT interrompt le script avant l'enregistrement de cet etat et avant le redemarrage.
+
+Le script propose ensuite l'IPv4 publique detectee (modifiable) et demande le reseau CIDR.
 Il accepte les sous-reseaux RFC1918 de /16 a /29, limites de la directive serveur OpenVPN,
 et refuse une adresse d'hote ou un chevauchement avec les routes presentes sur le VPS.
 Le serveur VPN utilise la premiere adresse utilisable : reseau + 1
 (par exemple `192.168.42.0/24` donne `192.168.42.1`).
 Les conflits avec les reseaux distants des futurs clients restent a verifier par l'administrateur.
-Un recapitulatif et une confirmation precedent toute modification systeme, y compris le clavier.
+Apres la preparation Debian, un recapitulatif et une confirmation precedent la configuration du clavier.
 Une seconde confirmation precede l'installation apres la saisie des autres parametres.
 Les anciennes commandes avec arguments restent compatibles.
 Le script demande les deux mots de passe, la cle PUBLIQUE ED25519 du poste administrateur,
 l'organisation et l'email PKI. Ne pas fournir une cle privee ni la cle reservee a l'acces GitHub.
 Il initialise la base GUI, les configurations et une PKI neuve, puis demarre les services.
-Aucune etape GUI ni seconde commande n'est necessaire pour obtenir un VPN operationnel.
+Aucune etape GUI n'est necessaire ; seule la relance apres redemarrage est demandee.
 Les erreurs importantes provoquent un statut non nul, sans message de succes.
 
 ## Acces et protection SSH
