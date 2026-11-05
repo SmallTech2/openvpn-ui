@@ -16,7 +16,7 @@ user {{ .OVConfigUser }}
 group {{ .OVConfigGroup }}
 
 client-config-dir {{ .OVConfigClientConfigDir }}
-ifconfig-pool-persist {{ .IfconfigPoolPersist }}
+# Avec nopool, les IP fixes sont definies dans les fichiers CCD, sans persistance de pool.
 
 ca {{ .Ca }}
 cert {{ .Cert }}

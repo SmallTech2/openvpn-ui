@@ -216,6 +216,8 @@ install_radio(){
   for f in openvpn-server-config.tpl openvpn-client-config.tpl easyrsa-vars.tpl; do
     install -m 644 "$TMP/src/Radio/config/$f" "$INSTALL_ROOT/conf/$f"
   done
+  # Compatibilite du modele radio-build-test3 : nopool exclut la persistance d'un pool dynamique.
+  sed -i '/^[[:space:]]*ifconfig-pool-persist[[:space:]]/d' "$INSTALL_ROOT/conf/openvpn-server-config.tpl"
   install -m 755 "$TMP/src/Radio/scripts/"*.sh /opt/scripts/
   ln -s /usr/bin/qrencode /opt/scripts/qrencode
   install -d -m 755 /usr/share/easy-rsa/pki

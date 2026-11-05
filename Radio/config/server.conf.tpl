@@ -16,7 +16,7 @@ user nobody
 group nogroup
 
 client-config-dir /etc/openvpn/staticclients
-ifconfig-pool-persist pki/ipp.txt
+# Avec nopool, les IP fixes sont definies dans les fichiers CCD, sans persistance de pool.
 
 ca pki/ca.crt
 cert pki/issued/server.crt
