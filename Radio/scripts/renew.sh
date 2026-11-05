@@ -7,7 +7,7 @@ set -e
 CERT_NAME=$1
 CERT_IP=$2
 CERT_SERIAL=$3
-EASY_RSA=$(grep -E "^EasyRsaPath\s*=" /opt/openvpn-ui-runtime/conf/app.conf | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+EASY_RSA=$(grep -E "^EasyRsaPath\s*=" "${OPENVPN_UI_CONFIG:-/opt/openvpn-ui-runtime/conf/app.conf}" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
 echo 'EasyRSA path: $EASY_RSA'
 
 # Check if 2FA was specified. If not - set to none.
@@ -25,7 +25,9 @@ if [ -n "$1" ]; then
   
   # Fix for new /name in index.txt (adding name and ip to the last line)
   sed -i'.bak' "$ s/$/\/name=${CERT_NAME}\/LocalIP=${CERT_IP}\/2FAName=${TFA_NAME}/" $EASY_RSA/pki/index.txt
-  echo 'All Done, hlopche!'
+  SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+  bash "$SCRIPT_DIR/write-client-profile.sh" "$CERT_NAME"
+  echo 'Certificat renouvele ; historique CA conserve.'
 else
   echo "Invalid input argument: $CERT_NAME Exiting."
   exit 1

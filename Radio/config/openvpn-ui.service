@@ -2,6 +2,8 @@
 Description=OpenVPN UI
 After=network-online.target
 Wants=network-online.target
+After=nftables.service
+Requires=nftables.service
 
 [Service]
 Type=simple
@@ -11,6 +13,7 @@ EnvironmentFile=/etc/openvpn-ui.env
 ExecStart=/opt/openvpn-ui-runtime/openvpn-ui
 Restart=on-failure
 RestartSec=5
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target

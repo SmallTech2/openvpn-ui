@@ -9,7 +9,6 @@ import (
 	"github.com/beego/beego/v2/core/logs"
 	"github.com/beego/beego/v2/server/web"
 	clientconfig "github.com/d3vilh/openvpn-server-config/client/client-config"
-	mi "github.com/d3vilh/openvpn-server-config/server/mi"
 	"github.com/d3vilh/openvpn-ui/lib"
 	"github.com/d3vilh/openvpn-ui/models"
 	"github.com/d3vilh/openvpn-ui/state"
@@ -61,7 +60,7 @@ func (c *OVClientConfigController) Post() {
 	//logs.Info("Post: Parsing form data")
 	if err := c.ParseForm(&cfg); err != nil {
 		logs.Warning(err)
-		flash.Error(err.Error())
+		flash.Error("%s", err.Error())
 		flash.Store(&c.Controller)
 		return
 	}
@@ -72,10 +71,15 @@ func (c *OVClientConfigController) Post() {
 
 	destPath := filepath.Join(state.GlobalCfg.OVConfigPath, "config/client.conf")
 	//logs.Info("Post: Saving configuration to file according to template")
+	if err := models.ApplyRadioClientConfig(&cfg.Config); err != nil {
+		flash.Error("%s", err.Error())
+		flash.Store(&c.Controller)
+		return
+	}
 	err := clientconfig.SaveToFile(filepath.Join(c.ConfigDir, "openvpn-client-config.tpl"), cfg.Config, destPath)
 	if err != nil {
 		logs.Warning(err)
-		flash.Error(err.Error())
+		flash.Error("%s", err.Error())
 		flash.Store(&c.Controller)
 		return
 	}
@@ -83,13 +87,10 @@ func (c *OVClientConfigController) Post() {
 	//logs.Info("Post: Updating configuration in database")
 	o := orm.NewOrm()
 	if _, err := o.Update(&cfg); err != nil {
-		flash.Error(err.Error())
+		flash.Error("%s", err.Error())
 	} else {
 		flash.Success("Post: Config has been updated")
-		client := mi.NewClient(state.GlobalCfg.MINetwork, state.GlobalCfg.MIAddress)
-		if err := client.Signal("SIGTERM"); err != nil {
-			flash.Warning("Config has been updated but OpenVPN server was NOT reloaded: " + err.Error())
-		}
+		// Le modele client est utilise aux prochains telechargements, sans arreter OpenVPN.
 	}
 
 	//logs.Info("Post: Reading updated server configuration from file")
@@ -114,7 +115,7 @@ func (c *OVClientConfigController) Edit() {
 	//logs.Info("Post: Parsing form data")
 	if err := c.ParseForm(&cfg); err != nil {
 		logs.Warning(err)
-		flash.Error(err.Error())
+		flash.Error("%s", err.Error())
 		flash.Store(&c.Controller)
 		return
 	}

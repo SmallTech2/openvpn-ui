@@ -32,10 +32,10 @@ func (c *DangerController) DeletePKI() {
 	//logs.Info("Controller: Deleting:", name)
 	if err := lib.DeletePKI(name); err != nil {
 		logs.Error(err)
-		flash.Error(err.Error())
+		flash.Error("%s", err.Error())
 		flash.Store(&c.Controller)
 	} else {
-		flash.Success("Success! The \"" + name + "\" has been deleted")
+		flash.Success("%s", "Success! The \""+name+"\" has been deleted")
 		flash.Store(&c.Controller)
 	}
 	c.Data["Flash"] = flash.Data
@@ -51,10 +51,10 @@ func (c *DangerController) InitPKI() {
 	//logs.Info("Controller: Runing init for:", name)
 	if err := lib.InitPKI(name); err != nil {
 		logs.Error(err)
-		flash.Error(err.Error())
+		flash.Error("%s", err.Error())
 		flash.Store(&c.Controller)
 	} else {
-		flash.Success("Success! The \"" + name + "\" has been initialized.")
+		flash.Success("%s", "Success! The \""+name+"\" has been initialized.")
 		flash.Store(&c.Controller)
 	}
 	c.Data["Flash"] = flash.Data
@@ -71,10 +71,10 @@ func (c *DangerController) RestartContainer() {
 	if err := lib.RestartContainer(name); err != nil {
 		logs.Error("Error restarting container:", err)
 		//	logs.Error("Stack trace:", string(debug.Stack()))
-		flash.Error(err.Error())
+		flash.Error("%s", err.Error())
 		flash.Store(&c.Controller)
 	} else {
-		flash.Success("Success! Container \"" + name + "\" has been restarted")
+		flash.Success("%s", "Success! Container \""+name+"\" has been restarted")
 		flash.Store(&c.Controller)
 	}
 	c.Data["Flash"] = flash.Data

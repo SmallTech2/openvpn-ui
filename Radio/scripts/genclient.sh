@@ -2,6 +2,7 @@
 #VERSION 1.4 by d3vilh@github.com aka Mr. Philipp. Updated with Easyrsa 3 support.
 # Exit immediately if a command exits with a non-zero status.
 set -e
+umask 077
 
 # .ovpn file path
 CERT_NAME=$1
@@ -9,8 +10,8 @@ CERT_IP=$2
 CERT_PASS=$3
 # These VARS shoud be in your ENV before running certgen: TFA_NAME, ISSUER, EASYRSA_CERT_EXPIRE, EASYRSA_REQ_EMAIL, EASYRSA_REQ_COUNTRY, EASYRSA_REQ_PROVINCE, EASYRSA_REQ_CITY, EASYRSA_REQ_ORG, EASYRSA_REQ_OU
 
-EASY_RSA=$(grep -E "^EasyRsaPath\s*=" /opt/openvpn-ui-runtime/conf/app.conf | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
-OPENVPN_DIR=$(grep -E "^OpenVpnPath\s*=" /opt/openvpn-ui-runtime/conf/app.conf | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+EASY_RSA=$(grep -E "^EasyRsaPath\s*=" "${OPENVPN_UI_CONFIG:-/opt/openvpn-ui-runtime/conf/app.conf}" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
+OPENVPN_DIR=$(grep -E "^OpenVpnPath\s*=" "${OPENVPN_UI_CONFIG:-/opt/openvpn-ui-runtime/conf/app.conf}" | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
 echo "EasyRSA path: $EASY_RSA OVPN path: $OPENVPN_DIR"
 OVPN_FILE_PATH="$OPENVPN_DIR/clients/$CERT_NAME.ovpn"
 OATH_SECRETS="$OPENVPN_DIR/clients/oath.secrets"   # 2FA secrets file
@@ -63,32 +64,8 @@ echo "Fixing Database..."
 sed -i'.bak' "$ s/$/\/name=${CERT_NAME}\/LocalIP=${CERT_IP}\/2FAName=${TFA_NAME}/" $EASY_RSA/pki/index.txt
 echo "Database fixed:"
 tail -1 $EASY_RSA/pki/index.txt
-# Certificate properties
-CA="$(cat $EASY_RSA/pki/ca.crt )"
-CERT="$(awk '/-----BEGIN CERTIFICATE-----/{flag=1;next}/-----END CERTIFICATE-----/{flag=0}flag' ./pki/issued/${CERT_NAME}.crt | tr -d '\0')"
-KEY="$(cat $EASY_RSA/pki/private/${CERT_NAME}.key)"
-TLS_AUTH="$(cat $EASY_RSA/pki/ta.key)"
-
-echo 'Fixing permissions for pki/issued...'
-chmod +r $EASY_RSA/pki/issued
-
-echo 'Generating .ovpn file...'
-echo "$(sed -E '/^[[:space:]]*<ca>[[:space:]]*$/,/^[[:space:]]*<\/ca>[[:space:]]*$/d; /^[[:space:]]*<cert>[[:space:]]*$/,/^[[:space:]]*<\/cert>[[:space:]]*$/d; /^[[:space:]]*<key>[[:space:]]*$/,/^[[:space:]]*<\/key>[[:space:]]*$/d; /^[[:space:]]*<tls-crypt>[[:space:]]*$/,/^[[:space:]]*<\/tls-crypt>[[:space:]]*$/d' "$OPENVPN_DIR/config/client.conf")
-<ca>
-$CA
-</ca>
-<cert>
-$CERT
-</cert>
-<key>
-$KEY
-</key>
-<tls-crypt>
-$TLS_AUTH
-</tls-crypt>
-" > "$OVPN_FILE_PATH"
-
-echo -e "OpenVPN Client configuration successfully generated!\nCheckout openvpn-server/clients/$CERT_NAME.ovpn"
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+bash "$SCRIPT_DIR/write-client-profile.sh" "$CERT_NAME"
 
 # Check if $TFA_NAME was specified and not equal to "none". then create 2FA and QR code
 if [[ ! -z $TFA_NAME ]] && [[ $TFA_NAME != "none" ]]; then

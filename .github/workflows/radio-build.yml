@@ -1,7 +1,17 @@
 name: Radio Bonheur - Build OpenVPN UI
 
 on:
+  push:
+    branches: [main, 'radio/**']
+    tags: ['radio-build-test*']
+  pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Preversion a publier (vide = compilation seulement)'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -9,18 +19,27 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-
       - name: Install Go required by go.mod
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-
+      - name: Validate shell scripts
+        run: |
+          set -euo pipefail
+          for script in Radio/*.sh Radio/scripts/*.sh; do bash -n "$script"; done
+      - name: Go tests and vet
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          go test -mod=vendor ./...
+          go vet -mod=vendor ./...
       - name: Compile Linux amd64
         env:
           CGO_ENABLED: '1'
@@ -29,16 +48,59 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          go build -trimpath -buildvcs=true -o dist/openvpn-ui .
-          test -s dist/openvpn-ui
-          (cd dist && sha256sum openvpn-ui > openvpn-ui.sha256)
-          git rev-parse HEAD > dist/source-commit.txt
+          go build -mod=vendor -trimpath -buildvcs=true -o dist/openvpn-ui .
           file dist/openvpn-ui
-
+      - name: Test initialization for all three networks
+        env:
+          RADIO_TEST_BINARY: ${{ github.workspace }}/dist/openvpn-ui
+        run: python3 -B -m unittest discover -s Radio/tests -p 'test_*.py' -v
+      - name: Test real Easy-RSA certificates and persistent revocation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends openvpn
+          curl --fail --location --proto '=https' --proto-redir '=https' \
+            https://github.com/OpenVPN/easy-rsa/archive/refs/tags/v3.2.2.tar.gz -o "$RUNNER_TEMP/easyrsa.tgz"
+          mkdir "$RUNNER_TEMP/easyrsa"
+          tar -xzf "$RUNNER_TEMP/easyrsa.tgz" -C "$RUNNER_TEMP/easyrsa" --strip-components=1
+          EASYRSA_TEST_SOURCE="$RUNNER_TEMP/easyrsa/easyrsa3" python3 -B Radio/tests/test_pki.py -v
+      - name: Package runtime and verify checksums
+        run: |
+          bash Radio/package-release.sh dist/openvpn-ui
+          (cd dist; sha256sum -c radio-openvpn-ui-linux-amd64.zip.sha256)
+          mkdir "$RUNNER_TEMP/radio-package"
+          unzip -q dist/radio-openvpn-ui-linux-amd64.zip -d "$RUNNER_TEMP/radio-package"
+          (cd "$RUNNER_TEMP/radio-package"; sha256sum -c SHA256SUMS)
       - name: Publish build artifact for validation
         uses: actions/upload-artifact@v4
         with:
           name: radio-openvpn-ui-linux-amd64
-          path: dist/
+          path: |
+            dist/radio-openvpn-ui-linux-amd64.zip
+            dist/radio-openvpn-ui-linux-amd64.zip.sha256
           if-no-files-found: error
           retention-days: 30
+
+  prerelease:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/radio-build-test') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: radio-openvpn-ui-linux-amd64
+          path: dist
+      - name: Publish test release only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^radio-build-test[0-9]+$ ]] || { echo 'Seules les preversions radio-build-testN sont autorisees.' >&2; exit 1; }
+          gh release create "$RELEASE_TAG" --target "$SOURCE_COMMIT" --prerelease \
+            --title "Radio Bonheur - $RELEASE_TAG" \
+            --notes "Preversion de recette. Commit $SOURCE_COMMIT. Aucun deploiement VPS effectue." \
+            dist/radio-openvpn-ui-linux-amd64.zip dist/radio-openvpn-ui-linux-amd64.zip.sha256

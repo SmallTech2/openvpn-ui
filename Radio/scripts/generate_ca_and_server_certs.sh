@@ -1,114 +1,41 @@
-#!/bin/bash -e
-#VERSION 1.2 by d3vilh@github.com aka Mr. Philipp
+#!/usr/bin/env bash
+# Une seule PKI : /etc/openvpn/pki pointe sur le repertoire Easy-RSA.
+set -Eeuo pipefail
+umask 077
+ACTION="${1:?Action PKI manquante}"
+APP_CONF="${OPENVPN_UI_CONFIG:-/opt/openvpn-ui-runtime/conf/app.conf}"
+EASY_RSA=$(grep -E '^EasyRsaPath\s*=' "$APP_CONF" | cut -d= -f2 | tr -d '"[:space:]')
+OPENVPN_DIR=$(grep -E '^OpenVpnPath\s*=' "$APP_CONF" | cut -d= -f2 | tr -d '"[:space:]')
+cd "$EASY_RSA"
+export EASYRSA_BATCH=1
+export EASYRSA_PKI="$EASY_RSA/pki"
 
-#Variables
-ACTION=$1  #passed via OpenVPN-UI GUI
-EASY_RSA=$(grep -E "^EasyRsaPath\s*=" /opt/openvpn-ui-runtime/conf/app.conf | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
-OPENVPN_DIR=$(grep -E "^OpenVpnPath\s*=" /opt/openvpn-ui-runtime/conf/app.conf | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
-echo "EasyRSA path: $EASY_RSA OVPN path: $OPENVPN_DIR"
-TEMP_PKI_DIR=/tmp/pki
-mkdir -p $TEMP_PKI_DIR
-
-cd $EASY_RSA
- 
-if [ "$ACTION" = "init_all" ] && [ -e "$OPENVPN_DIR/pki/ca.crt" ]; then
-  echo "ERREUR : PKI existante. Refus de reinitialiser." >&2
-  exit 1
-fi
-
-if [ "$ACTION" = "copy_vars" ]; then
-  # Copy easy-rsa variables
-  cp $OPENVPN_DIR/config/easy-rsa.vars $EASY_RSA/pki/vars
-  echo 'New vars applied.'
-fi
-
-if [[ ! -f $EASY_RSA/openssl-easyrsa.cnf || ! -f $OPENVPN_DIR/pki/ca.crt || ! -f $OPENVPN_DIR/pki/issued/server.crt || ! -f $OPENVPN_DIR/pki/dh.pem || ! -f $OPENVPN_DIR/pki/ta.key || ! -f $OPENVPN_DIR/pki/crl.pem || "$ACTION" = "init_all" || "$ACTION" = "gen_crl" ]] && ! [[ "$ACTION" = "copy_vars" ]]; then
-    export EASYRSA_BATCH=1 # see https://superuser.com/questions/1331293/easy-rsa-v3-execute-build-ca-and-gen-req-silently
-
-    # Copy easy-rsa variables
-    cp $OPENVPN_DIR/config/easy-rsa.vars $EASY_RSA/pki/vars
-
-    echo "Following EASYRSA variables will be used:"
-    cat $EASY_RSA/pki/vars | awk '{$1=""; print $0}';
-
-  if [[ "$ACTION" = "init-pki" && ! -f $EASY_RSA/openssl-easyrsa.cnf ]]; then
-      # Building the CA with WA to avoid issues with .pki container volume which not possible to remove due to its origin
-      echo 'Setting up public key infrastructure...'
-      $EASY_RSA/easyrsa --pki-dir=$TEMP_PKI_DIR init-pki
-
-      echo 'Moving PKI directory...'
-      mv $TEMP_PKI_DIR/* $EASY_RSA/pki/
-      cp $OPENVPN_DIR/config/easy-rsa.vars $EASY_RSA/pki/vars
-
-    elif [[ "$ACTION" = "build_ca" && ! -f $OPENVPN_DIR/pki/ca.crt ]]; then
-      echo 'Generating Certificate authority...'
-      $EASY_RSA/easyrsa build-ca nopass
-
-    elif [[ "$ACTION" = "gen_req" && ! -f $OPENVPN_DIR/pki/issued/server.crt ]]; then
-      # Creating the Server Certificate, Key, and Encryption Files
-      echo 'Creating the Server Certificate...'
-      $EASY_RSA/easyrsa gen-req server nopass
-
-      echo 'Sign request...'
-      $EASY_RSA/easyrsa sign-req server server
-
-    elif [[ "$ACTION" = "gen_dh" && ! -f $OPENVPN_DIR/pki/dh.pem ]]; then
-      echo 'Generate Diffie-Hellman key...'
-      $EASY_RSA/easyrsa gen-dh
-
-    elif [[ "$ACTION" = "gen_ta" && ! -f $OPENVPN_DIR/pki/ta.key ]]; then
-      # Generate HMAC signature in "openvpn" container with Docker API or in host
-      echo 'Generate HMAC signature...'
-      # Check if the "openvpn" command exists
-      command -v openvpn >/dev/null || { echo "openvpn introuvable" >&2; exit 1; }
-      openvpn --genkey secret "$OPENVPN_DIR/pki/ta.key"
-
-    elif [ "$ACTION" = "gen_crl" ]; then
-      echo 'Create certificate revocation list (CRL)...'
-      $EASY_RSA/easyrsa gen-crl
-      chmod +r $EASY_RSA/pki/crl.pem
-
-    elif [ "$ACTION" = "init_all" ]; then
-      # Init all Begin
-      cp $OPENVPN_DIR/config/easy-rsa.vars $EASY_RSA/pki/vars
-
-      echo "Following EASYRSA variables will be used:"
-      cat $EASY_RSA/pki/vars | awk '{$1=""; print $0}';
-
-      echo 'Setting up public key infrastructure...'
-      $EASY_RSA/easyrsa --pki-dir=$TEMP_PKI_DIR init-pki
-
-      echo 'Moving PKI directory...'
-      mv $TEMP_PKI_DIR/* $EASY_RSA/pki/
-
-      cp $OPENVPN_DIR/config/easy-rsa.vars $EASY_RSA/pki/vars
-
-      echo 'Generating Certificate authority...'
-      $EASY_RSA/easyrsa build-ca nopass
-
-      echo 'Creating the Server Certificate...'
-      $EASY_RSA/easyrsa gen-req server nopass
-
-      echo 'Sign request...'
-      $EASY_RSA/easyrsa sign-req server server
-
-      echo 'Generate Diffie-Hellman key...'
-      $EASY_RSA/easyrsa gen-dh
-
-      echo 'Generate HMAC signature...'
-      command -v openvpn >/dev/null || { echo "openvpn introuvable" >&2; exit 1; }
-      openvpn --genkey secret "$OPENVPN_DIR/pki/ta.key"
-
-      echo 'Create certificate revocation list (CRL)...'
-      $EASY_RSA/easyrsa gen-crl
-      chmod +r $EASY_RSA/pki/crl.pem
-      # Init all End
-    else
-      echo "Invalid input argument: $ACTION Exiting."
-      exit 1
+init_pki() {
+  [[ ! -e "$EASYRSA_PKI/ca.crt" ]] || { echo 'PKI existante : reinitialisation refusee.' >&2; exit 1; }
+  ./easyrsa init-pki
+  cp "$OPENVPN_DIR/config/easy-rsa.vars" "$EASYRSA_PKI/vars"
+  # La CRL est relue par OpenVPN apres abandon des privileges root.
+  chmod 755 "$EASYRSA_PKI"
+}
+build_ca() { [[ -s "$EASYRSA_PKI/ca.crt" ]] || ./easyrsa build-ca nopass; }
+gen_req() {
+  if [[ ! -s "$EASYRSA_PKI/issued/server.crt" ]]; then
+    ./easyrsa gen-req server nopass
+    ./easyrsa sign-req server server
   fi
+}
+gen_dh() { [[ -s "$EASYRSA_PKI/dh.pem" ]] || ./easyrsa gen-dh; }
+gen_ta() { [[ -s "$EASYRSA_PKI/ta.key" ]] || openvpn --genkey secret "$EASYRSA_PKI/ta.key"; }
+gen_crl() { ./easyrsa gen-crl; chmod 644 "$EASYRSA_PKI/crl.pem"; }
 
-   echo 'All done.'
-else
-    echo 'PKI already set up.'
-fi
+case "$ACTION" in
+  init-pki) init_pki ;;
+  copy_vars) cp "$OPENVPN_DIR/config/easy-rsa.vars" "$EASYRSA_PKI/vars" ;;
+  build_ca) build_ca ;;
+  gen_req) gen_req ;;
+  gen_dh) gen_dh ;;
+  gen_ta) gen_ta ;;
+  gen_crl) gen_crl ;;
+  init_all) init_pki; build_ca; gen_req; gen_dh; gen_ta; gen_crl ;;
+  *) echo "Action PKI inconnue : $ACTION" >&2; exit 1 ;;
+esac

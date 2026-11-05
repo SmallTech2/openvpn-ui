@@ -40,15 +40,14 @@ func InitDB() {
 
 	err = orm.RunSyncdb("default", false, true)
 	if err != nil {
-		logs.Error(err)
-		return
+		panic(err)
 	}
 }
 
 func CreateDefaultUsers() {
 	hash, err := passlib.Hash(os.Getenv("OPENVPN_ADMIN_PASSWORD"))
 	if err != nil {
-		logs.Error("Unable to hash password", err)
+		panic(err)
 	}
 	user := User{
 		Id:       1,
@@ -65,6 +64,8 @@ func CreateDefaultUsers() {
 		} else {
 			logs.Debug(user)
 		}
+	} else {
+		panic(err)
 	}
 }
 
@@ -154,6 +155,9 @@ func CreateDefaultOVConfig(configDir string, ovConfigPath string, address string
 			CustomOptThree:           "# Custom Option Three\n# push \"route 0.0.0.0 255.255.255.255 net_gateway\"\n# push block-outside-dns",
 		},
 	}
+	if err := ApplyRadioServerConfig(&c.Config); err != nil {
+		panic(err)
+	}
 	o := orm.NewOrm()
 	if created, _, err := o.ReadOrCreate(&c, "Profile"); err == nil {
 		if created {
@@ -164,11 +168,11 @@ func CreateDefaultOVConfig(configDir string, ovConfigPath string, address string
 		serverConfig := filepath.Join(ovConfigPath, "server.conf")
 		if _, err = os.Stat(serverConfig); os.IsNotExist(err) {
 			if err = config.SaveToFile(filepath.Join(configDir, "openvpn-server-config.tpl"), c.Config, serverConfig); err != nil {
-				logs.Error(err)
+				panic(err)
 			}
 		}
 	} else {
-		logs.Error(err)
+		panic(err)
 	}
 }
 
@@ -201,6 +205,9 @@ func CreateDefaultOVClientConfig(configDir string, ovConfigPath string, address 
 			CustomConfThree:   "#Custom Option Three",
 		},
 	}
+	if err := ApplyRadioClientConfig(&c.Config); err != nil {
+		panic(err)
+	}
 	o := orm.NewOrm()
 	if created, _, err := o.ReadOrCreate(&c, "Profile"); err == nil {
 		if created {
@@ -211,11 +218,11 @@ func CreateDefaultOVClientConfig(configDir string, ovConfigPath string, address 
 		clientConfig := filepath.Join(ovConfigPath, "config/client.conf")
 		if _, err = os.Stat(clientConfig); os.IsNotExist(err) {
 			if err = clientconfig.SaveToFile(filepath.Join(configDir, "openvpn-client-config.tpl"), c.Config, clientConfig); err != nil {
-				logs.Error(err)
+				panic(err)
 			}
 		}
 	} else {
-		logs.Error(err)
+		panic(err)
 	}
 }
 
@@ -238,6 +245,9 @@ func CreateDefaultEasyRSAConfig(configDir string, easyRSAPath string, address st
 			EasyRSACrlDays:     180,
 		},
 	}
+	if err := ApplyRadioEasyRSAConfig(&c.Config); err != nil {
+		panic(err)
+	}
 	o := orm.NewOrm()
 	if created, _, err := o.ReadOrCreate(&c, "Profile"); err == nil {
 		if created {
@@ -248,10 +258,10 @@ func CreateDefaultEasyRSAConfig(configDir string, easyRSAPath string, address st
 		easyRSAConfig := filepath.Join(easyRSAPath, "pki/vars")
 		if _, err = os.Stat(easyRSAConfig); os.IsNotExist(err) {
 			if err = easyrsaconfig.SaveToFile(filepath.Join(configDir, "easyrsa-vars.tpl"), c.Config, easyRSAConfig); err != nil {
-				logs.Error(err)
+				panic(err)
 			}
 		}
 	} else {
-		logs.Error(err)
+		panic(err)
 	}
 }

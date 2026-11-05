@@ -1,6 +1,6 @@
 management 127.0.0.1 2080  # Don't change this line. OpenVPN UI uses this feature to manage the server 
 
-dev tun
+dev tun0
 port 1194
 proto udp
 
@@ -34,12 +34,10 @@ data-ciphers AES-256-GCM:AES-192-GCM:AES-128-GCM
 
 auth SHA512
 
-server @VPN_NETWORK@ 255.255.0.0           # Trusted VPN subnet
-#route @VPN_NETWORK@ 255.255.0.0            # Route to Guest VPN subnet
-# push "route 10.0.60.0 255.255.255.0"     # Route to Home VPN subnet
+server @VPN_NETWORK@ 255.255.0.0 nopool
+ccd-exclusive
 # push "dhcp-option DNS 8.8.8.8"             # DNS1 server for VPN clients
 # push "dhcp-option DNS 1.0.0.1"             # DNS2 server for VPN clients
-# push "redirect-gateway def1 bypass-dhcp"    # Redirect gateway for VPN clients
 
 log /var/log/openvpn/openvpn.log
 verb 3

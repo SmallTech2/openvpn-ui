@@ -41,17 +41,5 @@ func InitPKI(name string) error {
 }
 
 func RestartContainer(name string) error {
-	//logs.Info("Lib: Restarting:", name)
-	cmd := exec.Command("/bin/bash", "-c",
-		fmt.Sprintf(
-			"cd /opt/scripts/ && "+
-				"./restart.sh %s", name))
-	cmd.Dir = state.GlobalCfg.OVConfigPath
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		logs.Debug(string(output))
-		logs.Error(err)
-		return err
-	}
-	return nil
+	return runVPNScript("restart.sh", []string{name}, nil)
 }

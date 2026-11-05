@@ -1,71 +1,23 @@
-#!/bin/bash
-#VERSION 1.2 by d3vilh@github.com aka Mr. Philipp
-# Exit immediately if a command exits with a non-zero status
-set -e
-
-#Variables
-CERT_NAME=$1
-CERT_SERIAL=$2
-EASY_RSA=$(grep -E "^EasyRsaPath\s*=" /opt/openvpn-ui-runtime/conf/app.conf | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
-OPENVPN_DIR=$(grep -E "^OpenVpnPath\s*=" /opt/openvpn-ui-runtime/conf/app.conf | cut -d= -f2 | tr -d '"' | tr -d '[:space:]')
-echo 'EasyRSA path: $EASY_RSA OVPN path: $OPENVPN_DIR'
-OVPN_FILE_PATH="$OPENVPN_DIR/clients/$CERT_NAME.ovpn"
-QR_CODE_PATH="$OPENVPN_DIR/clients/$CERT_NAME.png" # 2FA QR code
-OATH_SECRETS="$OPENVPN_DIR/clients/oath.secrets"   # 2FA secrets file
-INDEX="$EASY_RSA/pki/index.txt"
-
-echo "Removing user: $CERT_NAME with Serial: $CERT_SERIAL"
-
-# Define if cert is valid or revoked
-STATUS_CH=$(grep -e ${CERT_NAME}$ -e${CERT_NAME}/ ${INDEX} | awk '{print $1}' | tr -d '\n')
-if [[ $STATUS_CH = "V" ]]; then
-    echo "Cert is VALID\nShould not remove: $CERT_NAME with serial: $CERT_SERIAL\nExiting..."
-    exit 1
-else
-    echo "Cert is REVOKED\nContinue to remove: $CERT_NAME with serial: $CERT_SERIAL"
+#!/usr/bin/env bash
+set -Eeuo pipefail
+CERT_NAME="${1:?Nom manquant}"
+CERT_SERIAL="${2:?Numero de serie manquant}"
+[[ "$CERT_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.@-]*$ && "$CERT_SERIAL" =~ ^[a-fA-F0-9]+$ ]] || exit 1
+APP_CONF="${OPENVPN_UI_CONFIG:-/opt/openvpn-ui-runtime/conf/app.conf}"
+EASY_RSA=$(grep -E '^EasyRsaPath\s*=' "$APP_CONF" | cut -d= -f2 | tr -d '"[:space:]')
+OPENVPN_DIR=$(grep -E '^OpenVpnPath\s*=' "$APP_CONF" | cut -d= -f2 | tr -d '"[:space:]')
+STATUS=$(awk -F '\t' -v serial="$CERT_SERIAL" 'toupper($4)==toupper(serial){print $1}' "$EASY_RSA/pki/index.txt")
+[[ "$STATUS" == R ]] || { echo 'Suppression refusee : certificat non revoque.' >&2; exit 1; }
+# Un autre certificat valide du meme client peut exister apres renouvellement.
+if ! awk -F '\t' -v cn="$CERT_NAME" '$1=="V" {n=split($6,p,"/"); for(i=1;i<=n;i++) if(p[i]=="CN="cn) found=1} END{exit !found}' "$EASY_RSA/pki/index.txt"; then
+  rm -f -- "$OPENVPN_DIR/clients/$CERT_NAME.ovpn" "$OPENVPN_DIR/clients/$CERT_NAME.png" "$OPENVPN_DIR/staticclients/$CERT_NAME"
+  if [[ -n "${TFA_NAME:-}" && -f "$OPENVPN_DIR/clients/oath.secrets" ]]; then
+    python3 - "$OPENVPN_DIR/clients/oath.secrets" "$TFA_NAME" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+path.write_text(''.join(line for line in path.read_text().splitlines(True)
+                        if line.split(':', 1)[0] != sys.argv[2]))
+PY
+  fi
 fi
-
-# Check if the user has two certificates in index.txt
-if [[ $(cat $INDEX | grep -c "/CN=$CERT_NAME/") -eq 2 ]]; then
-    echo "Removing renewed certificate..."
-    sed -i'.bak' "/${CERT_SERIAL}/d" $INDEX
-    # removing *.ovpn file because it has old certificate
-    rm -f $OVPN_FILE_PATH
-    
-    echo 'Generating New .ovpn file...'
-    CA="$(cat $EASY_RSA/pki/ca.crt )"
-    CERT="$(cat $EASY_RSA/pki/issued/${CERT_NAME}.crt | grep -zEo -e '-----BEGIN CERTIFICATE-----(\n|.)*-----END CERTIFICATE-----' | tr -d '\0')"
-    KEY="$(cat $EASY_RSA/pki/private/${CERT_NAME}.key)"
-    TLS_AUTH="$(cat $EASY_RSA/pki/ta.key)"
-    echo "$(cat $OPENVPN_DIR/config/client.conf)
-<ca>
-$CA
-</ca>
-<cert>
-$CERT
-</cert>
-<key>
-$KEY
-</key>
-<tls-crypt>
-$TLS_AUTH
-</tls-crypt>
-" > "$OVPN_FILE_PATH"
-    echo "New .ovpn file created."
-
-else
-    echo "Removing certificate...\nRemoving *.ovpn file" 
-    rm -f $OVPN_FILE_PATH
-    rm -f $QR_CODE_PATH
-    # Remove user from oath.secrets
-    if [ -f "$OATH_SECRETS" ]; then
-      sed -i'.bak' "/${TFA_NAME}/d" "$OATH_SECRETS"
-    else
-      echo "No $OATH_SECRETS nothing to remove"
-    fi
-    # Removing the user from the list following the serial number
-    sed -i'.bak' "/${CERT_SERIAL}/d" $INDEX
-    echo "Database fixed."
-fi
-
-echo 'Remove done!\nIf you want to disconnect the user please restart openvpn@server.service.'
+ echo 'Fichiers clients nettoyes ; historique des revocations conserve dans la CA.'

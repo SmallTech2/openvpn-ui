@@ -38,7 +38,7 @@
             <tbody>
 
             {{range .certificates}}
-              {{ if ne .Details.Name "server"}}
+              {{ if ne .Details.CN "server"}}
               <tr>
                   <td>
                     <a href="{{urlfor "CertificatesController.Download" ":key" .Details.Name}}">
@@ -117,7 +117,7 @@
                   {{ if eq .Revocation ""}}
                       <a class="btn btn-default btn-xs" disabled>Delete</a>
                   {{else}}
-                      <a href="{{urlfor "CertificatesController.Burn" ":key" .Details.CN ":serial" .Serial ":tfaname" .Details.TFAName}}" class="btn btn-danger btn-xs" title="Burn" style="font-size: 80%;">Delete</a>
+                      <a href="{{urlfor "CertificatesController.Burn" ":key" .Details.CN ":serial" .Serial ":tfaname" .Details.TFAName}}" class="btn btn-danger btn-xs" title="Delete client files; retain CA revocation history" style="font-size: 80%;">Delete files</a>
                   {{end}}
                     </td>
               </tr>

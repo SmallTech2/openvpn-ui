@@ -10,7 +10,7 @@ table inet filter {
         ct state established,related accept
         ct state invalid drop
 
-        tcp dport 22 accept  # À restreindre au pare-feu hébergeur et selon les IP admin
+        tcp dport { @SSH_PORTS@ } accept
         udp dport 1194 accept
 
         iifname "tun0" tcp dport 8080 accept

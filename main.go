@@ -14,6 +14,7 @@ import (
 
 func main() {
 	configDir := flag.String("config", "conf", "Path to config dir")
+	initializeOnly := flag.Bool("initialize-only", false, "Initialize database and configuration without starting HTTP")
 	flag.Parse()
 
 	configFile := filepath.Join(*configDir, "app.conf")
@@ -34,6 +35,9 @@ func main() {
 	models.CreateDefaultOVClientConfig(*configDir, defaultSettings.OVConfigPath, defaultSettings.MIAddress, defaultSettings.MINetwork)
 	models.CreateDefaultEasyRSAConfig(*configDir, defaultSettings.EasyRSAPath, defaultSettings.MIAddress, defaultSettings.MINetwork)
 	state.GlobalCfg = *defaultSettings
+	if *initializeOnly {
+		return
+	}
 
 	routers.Init(*configDir)
 
