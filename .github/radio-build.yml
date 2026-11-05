@@ -1,0 +1,44 @@
+name: Radio Bonheur - Build OpenVPN UI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Go required by go.mod
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Compile Linux amd64
+        env:
+          CGO_ENABLED: '1'
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          go build -trimpath -buildvcs=true -o dist/openvpn-ui .
+          test -s dist/openvpn-ui
+          (cd dist && sha256sum openvpn-ui > openvpn-ui.sha256)
+          git rev-parse HEAD > dist/source-commit.txt
+          file dist/openvpn-ui
+
+      - name: Publish build artifact for validation
+        uses: actions/upload-artifact@v4
+        with:
+          name: radio-openvpn-ui-linux-amd64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
