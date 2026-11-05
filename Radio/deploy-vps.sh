@@ -90,6 +90,26 @@ network_conflict(){
   done <<< "$2"
   return 1
 }
+wait_for_tun_address(){
+  local attempt
+  # systemd peut annoncer le service actif avant la configuration de tun0.
+  for attempt in {1..10}; do
+    if ip -j -4 address show dev tun0 2>/dev/null | python3 -c '
+import json, sys
+try:
+    interfaces = json.load(sys.stdin)
+except ValueError:
+    sys.exit(1)
+sys.exit(0 if any(
+    address.get("family") == "inet" and address.get("local") == sys.argv[1]
+    and address.get("prefixlen") == int(sys.argv[2])
+    for interface in interfaces for address in interface.get("addr_info", [])
+) else 1)
+' "$1" "$2"; then return 0; fi
+    if (( attempt < 10 )); then sleep 1; fi
+  done
+  return 1
+}
 confirm_install(){
   local answer
   read -r -p 'Commencer les modifications systeme ? [oui/N] : ' answer </dev/tty
@@ -279,7 +299,7 @@ install_radio(){
   activate_firewall
   systemctl enable --now openvpn@server.service
   systemctl is-active --quiet openvpn@server.service || die 'OpenVPN ne demarre pas.'
-  ip -4 address show tun0 | grep -Fq "inet $server_ip/$prefix " || die 'Adresse tun0 incorrecte.'
+  wait_for_tun_address "$server_ip" "$prefix" || die 'Adresse tun0 incorrecte.'
   ss -lun | grep -q ':1194 ' || die 'UDP 1194 absent.'
   systemctl enable --now openvpn-ui.service
   systemctl is-active --quiet openvpn-ui.service || die 'OpenVPN UI ne demarre pas.'
