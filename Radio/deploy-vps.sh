@@ -21,14 +21,13 @@ cleanup(){
   return "$status"
 }
 require_password(){
-  local one two minimum="${2:-8}" pattern="${3:-}"
+  local one two
   local LC_ALL=C.UTF-8
   while :; do
-    IFS= read -r -s -p "$1 ($minimum caracteres min.) : " one </dev/tty; printf '\n' >/dev/tty
+    IFS= read -r -s -p "$1 (8 caracteres min.) : " one </dev/tty; printf '\n' >/dev/tty
     IFS= read -r -s -p 'Confirmer : ' two </dev/tty; printf '\n' >/dev/tty
     [[ "$one" == "$two" ]] || { echo 'Saisies differentes.'; continue; }
-    [[ ${#one} -ge $minimum ]] || { echo 'Mot de passe trop court.'; continue; }
-    [[ -z "$pattern" || "$one" =~ $pattern ]] || { echo 'Caracteres non autorises.'; continue; }
+    [[ ${#one} -ge 8 ]] || { echo 'Mot de passe trop court.'; continue; }
     REPLY="$one"; return
   done
 }
@@ -53,7 +52,7 @@ install_radio(){
   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends keyboard-configuration
   dpkg-reconfigure keyboard-configuration
   require_password 'Mot de passe technicien'; local technician_pw="$REPLY"; unset REPLY
-  require_password 'Mot de passe admin OpenVPN UI' 12 '^[a-zA-Z0-9._@+=,:!-]+$'; local gui_pw="$REPLY"; unset REPLY
+  require_password 'Mot de passe admin OpenVPN UI'; local gui_pw="$REPLY"; unset REPLY
   read -r -p 'Cle SSH PUBLIQUE ED25519 du poste administrateur (obligatoire) : ' pubkey </dev/tty
   [[ "$pubkey" =~ ^ssh-ed25519[[:space:]]+[A-Za-z0-9+/=]+([[:space:]].*)?$ ]] || die 'Cle ED25519 invalide.'
   read -r -p 'Organisation PKI [Radio Bonheur] : ' org </dev/tty; org="${org:-Radio Bonheur}"
@@ -132,7 +131,11 @@ install_radio(){
   ln -s /usr/bin/qrencode /opt/scripts/qrencode
   install -d -m 755 /usr/share/easy-rsa/pki
   ln -s /usr/share/easy-rsa/pki /etc/openvpn/pki
-  printf 'OPENVPN_ADMIN_PASSWORD=%s\n' "$gui_pw" > /etc/openvpn-ui.env
+  # EnvironmentFile systemd : conserver espaces, guillemets et antislashs du mot de passe.
+  local gui_pw_escaped="${gui_pw//\\/\\\\}"
+  gui_pw_escaped="${gui_pw_escaped//\"/\\\"}"
+  printf 'OPENVPN_ADMIN_PASSWORD="%s"\n' "$gui_pw_escaped" > /etc/openvpn-ui.env
+  unset gui_pw_escaped
   chmod 600 /etc/openvpn-ui.env
   (cd "$INSTALL_ROOT"; OPENVPN_ADMIN_USERNAME=admin OPENVPN_ADMIN_PASSWORD="$gui_pw" ./openvpn-ui -initialize-only)
   unset gui_pw
