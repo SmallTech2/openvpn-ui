@@ -1,11 +1,6 @@
-# Maintenance — préparation de radio-v2
+# Maintenance
 
-> **radio-v2 est la prochaine version stable, encore en préparation.** Le tag et
-> la Release `radio-v2` ne sont pas encore publiés. La validation complète sur Debian 13 vierge doit
-> précéder la publication. `radio-v1` reste la version stable actuellement disponible.
-
-Les commandes de maintenance concernent un serveur déjà installé.
-Les procédures fonctionnelles sont reprises sans modification de leur logique.
+Les commandes ci-dessous concernent un serveur déjà installé.
 
 ## Renouvellement automatique de la CRL
 
@@ -61,13 +56,10 @@ sudo cat /etc/radio-vpn-deployed
 
 ## Reconstruire un serveur
 
-Pour `radio-v2`, attendre sa publication avant d'utiliser ses téléchargements.
-Pour une reconstruction avec la version déjà disponible, suivre [la fiche radio-v1](releases/radio-v1.md).
-
 
 Conserver le dépôt et les fichiers de la Release, noter l'IPv4, le réseau, l'identité PKI
 et la clé publique SSH à utiliser. Installer un **nouveau Debian 13 vierge**, puis suivre
-la procédure du futur tag `radio-v2`, après sa publication, y compris la relance après la mise à niveau et le redémarrage.
+la [procédure d’installation](installation.md) avec la référence publiée indiquée dans le README principal, y compris la relance après la mise à niveau et le redémarrage.
 Une reconstruction vierge génère une nouvelle CA : recréer les clients et redistribuer
 les profils. Elle ne restaure pas les identités existantes.
 
@@ -76,20 +68,20 @@ de la base et des fichiers d'exploitation. Ces données ne doivent jamais être 
 sur GitHub. La copie locale du dépôt et des Releases n'inclut pas la PKI du VPS.
 Aucun système supplémentaire de sauvegarde VPS n'est installé par ce projet.
 
-## Maintenance et références de version
+## Maintenance et fichiers de référence
 
 
 Suivez les mises à jour de sécurité Debian, l'état des services et les dates d'expiration
 des certificats et de la CRL. Conservez une session SSH ouverte pendant les interventions.
 Une modification de modèle dans le dépôt ne met pas à jour un serveur déjà installé.
 
-La future Release `radio-v2` devra conserver le binaire, le paquet de déploiement et leurs empreintes.
+La Release publiée conserve le binaire, le paquet de déploiement et leurs empreintes.
 Le paquet distingue les sources du binaire (`source-commit.txt`) de celles des scripts
 et modèles (`deployment-source-commit.txt`). Les sources et les dépendances Go sont
 conservées dans le dépôt, avec `go.mod`, `go.sum` et `vendor/`.
 Les paquets système restent fournis par les miroirs Debian et peuvent évoluer.
 
 
-La documentation courante est maintenue sur `main`. Les téléchargements figés de
-`radio-v2` seront utilisables uniquement après validation et publication.
-Les fichiers et le tag de `radio-v1` restent inchangés.
+Pour les téléchargements, utilisez uniquement la référence figée indiquée dans le
+[README principal](../README.md#version-stable-et-démarrage-rapide). Les fichiers d'une
+Release publiée et son tag doivent rester inchangés.

@@ -27,10 +27,10 @@ Conservez la PKI et les profils hors du dépôt public. Ne purgez pas l'index de
 pour supprimer un client : les entrées révoquées restent nécessaires aux futures CRL.
 La planification systemd de la CRL est créée par `../deploy-vps.sh`.
 
-Le helper `secure-ssh.sh` de `main` détermine le compte via `SUDO_USER` et son répertoire
+Le helper `secure-ssh.sh` détermine le compte via `SUDO_USER` et son répertoire
 via `getent passwd` ; aucun nom de compte n'est fixé dans ce script.
 L'installateur récupère cette correction par commit exact, distinct des sources figées
-de `radio-v1`, puis installe `/usr/local/bin/radio-secure-ssh` et la copie de `/opt/scripts`.
+du paquet du binaire, puis installe `/usr/local/bin/radio-secure-ssh` et la copie de `/opt/scripts`.
 La référence du helper figure dans `SSH_HARDENING_COMMIT` et dans l'état de déploiement.
 
 La validation SSH est obligatoire avant la suite de l'installation : preuve dans le journal
@@ -41,4 +41,5 @@ la restauration du fichier précédent. Le helper ne redémarre pas le service S
 
 La version installée doit être lancée avec sudo depuis une session par clé du compte
 administrateur, en lui transmettant `"$SSH_CONNECTION"`. Voir le [guide de sécurité](../../docs/security.md).
-Cette correction prépare `radio-v2` ; sa validation définitive sur Debian 13 reste à réaliser.
+La disponibilité de ce parcours dans une publication est indiquée par son installateur ;
+ne supposez pas que les évolutions du dépôt sont déjà incluses dans une Release publiée.

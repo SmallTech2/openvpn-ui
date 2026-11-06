@@ -1,14 +1,8 @@
-# Administration — préparation de radio-v2
+# Administration
 
-> **radio-v2 est la prochaine version stable, encore en préparation.** Le tag et
-> la Release `radio-v2` ne sont pas encore publiés. La validation complète sur Debian 13 vierge doit
-> précéder la publication. `radio-v1` reste la version stable actuellement disponible.
-
-Le fonctionnement décrit reprend les opérations existantes du logiciel.
-Les résultats de validation de la version historique sont conservés dans
-[la fiche radio-v1](releases/radio-v1.md) ; ils ne constituent pas une validation complète
-anticipée de `radio-v2`. Les exemples de réseaux sont fictifs.
-Remplacez `UTILISATEUR_LINUX` par le compte choisi à l'installation.
+Ce guide décrit l'utilisation d'un serveur installé depuis la référence publiée indiquée
+dans le [README principal](../README.md#version-stable-et-démarrage-rapide). Les exemples de réseaux sont fictifs.
+Remplacez `UTILISATEUR_LINUX` par le compte créé par l'installateur.
 
 ## Accès à OpenVPN UI
 
@@ -56,4 +50,4 @@ puis téléchargez et distribuez le nouveau profil `.ovpn` à l'appareil concern
 
 
 Voir aussi le [renouvellement de la CRL et le diagnostic](maintenance.md)
-et la [validation SSH obligatoire](security.md#validation-obligatoire-par-clé).
+et la [vérification de l'accès SSH par clé](security.md#vérifier-laccès-par-clé).

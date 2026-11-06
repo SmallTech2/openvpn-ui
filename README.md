@@ -19,38 +19,35 @@ compatibilité des chemins de déploiement.
 - Interface accessible depuis le VPN ou un tunnel SSH, protégée par nftables.
 - Renouvellement automatique de la liste de révocation des certificats (CRL).
 
-## Démarrage rapide et prochaine version stable
+## Version stable et démarrage rapide
 
-**`radio-v2` est la prochaine version stable, non encore publiée.** Sa publication
-attend la validation intégrale sur Debian 13 vierge. Les téléchargements du futur tag
-ne sont pas disponibles. La version stable actuelle reste
-[radio-v1](https://github.com/SmallTech2/openvpn-ui/releases/tag/radio-v1).
+La version stable officielle est **[radio-v1](https://github.com/SmallTech2/openvpn-ui/releases/tag/radio-v1)**.
+Utilisez sa référence figée pour installer le logiciel ; une branche de développement
+ne remplace pas une version publiée et validée.
 
 Prévoyez un serveur vierge Debian 13 x86_64/AMD64, une IPv4 publique fixe, un accès SSH
 interactif avec droits root/sudo et la clé publique ED25519 de votre poste administrateur.
 Les accès SSH et UDP 1194 doivent être autorisés par le pare-feu de l'hébergeur.
 
-Pour la **recette de la branche `main` avant publication**, sur un serveur vierge dédié :
-
 ```sh
 curl --fail --location --proto '=https' --proto-redir '=https' \
-  https://raw.githubusercontent.com/SmallTech2/openvpn-ui/main/Radio/deploy-vps.sh \
+  https://raw.githubusercontent.com/SmallTech2/openvpn-ui/radio-v1/Radio/deploy-vps.sh \
   -o deploy-vps.sh
-sudo env RADIO_RELEASE_TAG=radio-v1 bash deploy-vps.sh
+sudo bash deploy-vps.sh
 ```
 
-Le script demande une relance après la préparation Debian et le redémarrage.
-Ce parcours utilise le paquet déjà publié `radio-v1` avec le script de `main` ;
-il n'installe pas une Release `radio-v2` inexistante.
+Après la préparation Debian et le redémarrage, reconnectez-vous et relancez la même
+commande `sudo bash deploy-vps.sh` depuis le répertoire du script téléchargé.
+Le compte Linux créé par cette référence est `technicien`.
 
 Consultez les [guides dans docs/](docs/README.md) : [installation](docs/installation.md),
 [administration](docs/administration.md), [sécurité](docs/security.md) et
-[maintenance](docs/maintenance.md). Les commandes utilisant le futur tag `radio-v2`
-sont préparées dans le guide d'installation et réservées à l'après-publication.
+[maintenance](docs/maintenance.md). Les évolutions de développement ne sont annoncées
+comme stables qu'après leur validation complète et leur publication.
 
 ## Validation et limites
 
-La version historique `radio-v1` a été validée sur Debian 13 vierge : installation, interface Web,
+La version stable officielle a été validée sur Debian 13 vierge : installation, interface Web,
 services systemd et nftables, deux clients à IP fixes, communication interclients,
 Internet habituel conservé et reconnexion après redémarrage. La révocation avec refus
 de reconnexion, le renouvellement de la CRL et la persistance des révocations après
@@ -60,8 +57,7 @@ Le déploiement fourni cible IPv4 et AMD64. Les sous-réseaux privés acceptés 
 `/16` à `/29`, limites du mode serveur OpenVPN utilisé. Les autres architectures,
 IPv6 et les fonctions facultatives non décrites dans le guide ne font pas partie de
 ce périmètre validé. Le script installe un serveur vierge ; il ne migre pas une PKI existante.
-Les paquets Debian peuvent évoluer indépendamment de la Release. La validation complète
-de `radio-v2` reste à réaliser ; les résultats de `radio-v1` ne la remplacent pas.
+Les paquets Debian peuvent évoluer indépendamment de la Release.
 
 ## Licence et crédits
 

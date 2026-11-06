@@ -1,7 +1,7 @@
-# Notes de la version historique radio-v1
+# Référence de publication
 
-La fiche utilisateur est déplacée dans [docs/releases/radio-v1.md](../docs/releases/radio-v1.md).
+La version stable officielle et ses instructions de téléchargement sont indiquées
+uniquement dans le [README principal](../README.md#version-stable-et-démarrage-rapide).
 
-Ce fichier de renvoi est conservé pour le chemin `--notes-file` utilisé par le workflow
-historique `.github/workflows/radio-stable.yml`. Le tag et la Release `radio-v1` ne sont
-pas modifiés. La prochaine version est [radio-v2, en préparation](../docs/releases/radio-v2.md).
+Ce fichier est conservé au chemin attendu par l'option `--notes-file` du workflow
+de publication. Il ne contient ni historique de versions ni guide utilisateur.

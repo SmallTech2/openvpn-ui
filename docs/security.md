@@ -1,72 +1,64 @@
-# Sécurité — préparation de radio-v2
+# Sécurité
 
-> **radio-v2 est la prochaine version stable, encore en préparation.** Le tag et
-> la Release `radio-v2` ne sont pas encore publiés. La validation complète sur Debian 13 vierge doit
-> précéder la publication. `radio-v1` reste la version stable actuellement disponible.
+Utilisez la référence publiée indiquée dans le [README principal](../README.md#version-stable-et-démarrage-rapide).
+Les options exactes et les étapes de validation sont celles de l'installateur téléchargé ;
+une fonction présente sur une branche de développement n'est pas automatiquement disponible
+avec la référence stable.
 
 ## Compte administrateur et SSH
 
-
-Le script prévu pour `radio-v2`, actuellement sur `main`, demande le nom du compte Linux ; appuyez sur Entrée pour conserver
-`technicien`. Le nom doit contenir de 1 à 32 caractères : lettres minuscules, chiffres,
-`_` ou `-`, avec une lettre ou `_` en premier. Un nom correspondant déjà à un utilisateur
-ou à un groupe est refusé pour éviter de modifier un compte existant.
-
-Dans les exemples SSH ci-dessous, remplacez `UTILISATEUR_LINUX` par le nom choisi.
-Avec le script stable `radio-v1`, ce nom reste `technicien`.
+Utilisez le compte Linux créé par le script, indiqué dans le README principal ou dans
+le récapitulatif de l'installation. Si le script propose de choisir ce nom, respectez
+sa validation et conservez la valeur choisie pour les commandes SSH et sudo.
 Le compte dispose d'un répertoire personnel, de Bash, de sudo avec mot de passe
-et de la clé fournie. La configuration SSH est validée avant rechargement.
+et de la clé publique fournie. Ne copiez jamais votre clé privée sur le serveur.
 
-## Validation obligatoire par clé
+## Vérifier l'accès par clé
 
-Le script ne force plus `PasswordAuthentication yes` pendant la préparation :
-il conserve le réglage existant tant que l'accès par clé n'est pas prouvé.
-Il installe et vérifie la commande `/usr/local/bin/radio-secure-ssh`, puis attend :
-
-1. Gardez la session d'installation ouverte. Depuis un **autre terminal de votre poste**,
-   utilisez la commande SSH affichée par le script pour vous connecter avec le compte créé.
-   Elle impose une nouvelle authentification par clé, sans réutiliser une session multiplexée
-   ni accepter de mot de passe SSH. Ajoutez `-i CHEMIN_CLE_PRIVEE` si nécessaire.
-2. Dans cette nouvelle session, exécutez `echo "$SSH_CONNECTION"` et gardez-la ouverte.
-3. Copiez les quatre valeurs affichées dans la demande de l'installateur.
-
-L'installateur vérifie dans le journal du démarrage courant une authentification
-`publickey` pour **ce compte, cette connexion et l'empreinte de la clé installée**.
-Une simple confirmation ou une connexion par mot de passe ne suffit pas.
-Sans preuve, aucun mot de passe n'est désactivé et l'installation ne continue pas.
-
-Après cette preuve, le helper impose les valeurs suivantes et les contrôle avec
-`sshd -t`, puis `sshd -T`, globalement et dans le contexte complet de la connexion
-(compte, IP source, IP locale et port local), y compris les règles `Match` applicables :
-
-```text
-pubkeyauthentication yes
-authenticationmethods publickey
-passwordauthentication no
-kbdinteractiveauthentication no
-```
-
-Seul un rechargement de `ssh` est demandé ; les sessions ouvertes sont conservées.
-Une erreur de syntaxe, de configuration effective ou de rechargement provoque la restauration
-du fichier précédent et une nouvelle tentative de validation. L'installateur ne déclare
-pas l'installation terminée sans réussite de cette étape.
-Vérifiez une nouvelle connexion après durcissement avant de fermer les sessions conservées.
-
-La commande reste disponible pour un contrôle ou un nouveau durcissement ultérieur,
-depuis la session par clé du compte administrateur :
+Gardez la session d'installation ouverte. Depuis un autre terminal de votre poste,
+ouvrez une nouvelle connexion avec le compte créé et la clé fournie :
 
 ```sh
-sudo /usr/local/bin/radio-secure-ssh "$SSH_CONNECTION"
+ssh -o ControlMaster=no -o ControlPath=none -o PreferredAuthentications=publickey \
+  -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no \
+  UTILISATEUR_LINUX@IP_PUBLIQUE_DU_SERVEUR
 ```
 
-Elle est exécutée automatiquement par l'installateur pendant l'étape obligatoire ;
-ce n'est plus une opération facultative à penser à lancer après installation.
+Ajoutez `-p PORT_SSH` si nécessaire et `-i CHEMIN_CLE_PRIVEE` si la clé n'est pas sélectionnée
+automatiquement. Une demande de phrase secrète locale pour ouvrir la clé privée ne constitue
+pas une authentification SSH par mot de passe.
 
-## Différence historique avec radio-v1
+Ne désactivez jamais les mots de passe avant la réussite de cette connexion par clé.
+Si l'installateur demande les valeurs de `echo "$SSH_CONNECTION"` dans cette nouvelle
+session, transmettez-les à sa demande et gardez les deux sessions ouvertes.
 
-Le script figé de `radio-v1` pouvait laisser l'authentification par mot de passe active
-si son durcissement final n'aboutissait pas. La correction ci-dessus est propre à `main` ;
-elle ne modifie pas la Release ni les serveurs déjà installés.
+## Vérifier le durcissement effectif
+
+Ne vous fiez pas uniquement au contenu d'un fichier : les inclusions et les règles
+`Match` peuvent changer la configuration effective. Dans la session SSH concernée :
+
+```sh
+sudo /usr/sbin/sshd -t
+read -r CLIENT_IP CLIENT_PORT SERVER_IP SERVER_PORT <<< "$SSH_CONNECTION"
+sudo /usr/sbin/sshd -T -C "user=$(id -un),addr=$CLIENT_IP,host=$CLIENT_IP,laddr=$SERVER_IP,lport=$SERVER_PORT" \
+  | grep -E '^(pubkeyauthentication|passwordauthentication|kbdinteractiveauthentication|authenticationmethods) '
+```
+
+Le contrôle doit confirmer au minimum `pubkeyauthentication yes`,
+`passwordauthentication no` et `kbdinteractiveauthentication no`.
+Lorsque `AuthenticationMethods publickey` est configuré, vérifiez également
+`authenticationmethods publickey`.
+
+Le helper de durcissement peut être fourni par l'installateur. Utilisez uniquement la
+commande effectivement installée et son chemin indiqué dans la documentation de cette
+référence ; ne récupérez pas un helper non validé depuis une branche de développement
+pour compléter une installation publiée.
+Un helper doit vérifier la preuve d'accès par clé avant de modifier la configuration,
+contrôler les valeurs effectives et restaurer la configuration précédente en cas d'échec.
+Un contrôle manquant ou en échec ne constitue pas un durcissement réussi.
+
+Gardez les sessions existantes ouvertes et vérifiez une nouvelle connexion par clé
+après tout rechargement de SSH avant de les fermer.
 
 ## Protection réseau et retour arrière
 

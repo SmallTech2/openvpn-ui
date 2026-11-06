@@ -23,5 +23,5 @@ des paramètres d'installation. nftables limite l'accès distant à TCP 8080 à 
 l'accès local permet l'utilisation d'un tunnel SSH.
 
 Pour la version stable, les modèles sont récupérés depuis le commit exact déclaré dans
-le paquet `radio-v1`. Une modification de ce dossier sur `main` ne change ni la Release
+le paquet publié. Une modification de ce dossier sur `main` ne change ni la Release
 figée ni les serveurs déjà déployés.
