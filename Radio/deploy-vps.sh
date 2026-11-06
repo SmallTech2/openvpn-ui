@@ -4,7 +4,7 @@
 set -Eeuo pipefail
 umask 077
 REPO='SmallTech2/openvpn-ui'
-RELEASE_TAG="${RADIO_RELEASE_TAG:-radio-v2.1}"
+RELEASE_TAG="${RADIO_RELEASE_TAG:-radio-v2.2}"
 SOURCE_REF="${RADIO_SOURCE_REF:-}"
 # Compatibilite d'un paquet historique ; les nouveaux paquets contiennent le helper corrige.
 SSH_HARDENING_COMMIT='3ec0f9dda3f52b513959cae78527c7bdf239c4c0'

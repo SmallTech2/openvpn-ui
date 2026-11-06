@@ -40,7 +40,7 @@ et contextualisé, puis rechargement. Les mots de passe et le clavier interactif
 et `AuthenticationMethods publickey` impose la clé seule. Un échec après modification provoque
 la restauration du fichier précédent. Le helper ne redémarre pas le service SSH.
 
-Pour la prochaine publication, l'installateur mémorise un curseur du journal avant
+L'installateur mémorise un curseur du journal avant
 de demander une nouvelle connexion. Après confirmation, il appelle le helper avec
 `--after-cursor CURSOR ADRESSE_LOCALE PORT_SSH` et `SUDO_USER` égal au compte choisi.
 Le helper recherche automatiquement l'authentification par clé après ce curseur ;

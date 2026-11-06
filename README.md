@@ -21,7 +21,7 @@ compatibilité des chemins de déploiement.
 
 ## Version stable et démarrage rapide
 
-La version stable officielle est **[radio-v2.1](https://github.com/SmallTech2/openvpn-ui/releases/tag/radio-v2.1)**.
+La version stable officielle est **[radio-v2.2](https://github.com/SmallTech2/openvpn-ui/releases/tag/radio-v2.2)**.
 Utilisez sa référence figée pour installer le logiciel ; une branche de développement
 ne remplace pas une version publiée et validée.
 
@@ -31,7 +31,7 @@ Les accès SSH et UDP 1194 doivent être autorisés par le pare-feu de l'héberg
 
 ```sh
 curl --fail --location --proto '=https' --proto-redir '=https' \
-  https://raw.githubusercontent.com/SmallTech2/openvpn-ui/radio-v2.1/Radio/deploy-vps.sh \
+  https://raw.githubusercontent.com/SmallTech2/openvpn-ui/radio-v2.2/Radio/deploy-vps.sh \
   -o deploy-vps.sh
 sudo bash deploy-vps.sh
 ```

@@ -1,4 +1,4 @@
-name: Radio Bonheur - Freeze validated radio-v1
+name: OpenVPN UI - Publish stable release
 
 # Publication uniquement lors de la creation explicite du tag definitif.
 on: create
@@ -56,7 +56,7 @@ jobs:
             dist/source-commit.txt dist/deployment-source-commit.txt dist/validated-deployment-commit.txt
 
   publish_radio_v2:
-    if: github.event.ref_type == 'tag' && github.event.ref == 'radio-v2.1'
+    if: github.event.ref_type == 'tag' && github.event.ref == 'radio-v2.2'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -66,7 +66,7 @@ jobs:
       - name: Checkout exact stable tag
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: refs/tags/radio-v2.1
+          ref: refs/tags/radio-v2.2
           persist-credentials: false
       - name: Retrieve successful build of this exact commit
         env:
@@ -82,10 +82,10 @@ jobs:
           [[ "$(cat dist/source-commit.txt)" == "$SOURCE_COMMIT" ]]
           [[ "$(cat dist/deployment-source-commit.txt)" == "$SOURCE_COMMIT" ]]
           (cd dist; sha256sum -c openvpn-ui.sha256; sha256sum -c radio-openvpn-ui-linux-amd64.zip.sha256)
-          mkdir "$RUNNER_TEMP/radio-v2.1"
-          unzip -q dist/radio-openvpn-ui-linux-amd64.zip -d "$RUNNER_TEMP/radio-v2.1"
-          (cd "$RUNNER_TEMP/radio-v2.1"; sha256sum -c SHA256SUMS)
-          cmp dist/openvpn-ui "$RUNNER_TEMP/radio-v2.1/openvpn-ui"
+          mkdir "$RUNNER_TEMP/radio-v2.2"
+          unzip -q dist/radio-openvpn-ui-linux-amd64.zip -d "$RUNNER_TEMP/radio-v2.2"
+          (cd "$RUNNER_TEMP/radio-v2.2"; sha256sum -c SHA256SUMS)
+          cmp dist/openvpn-ui "$RUNNER_TEMP/radio-v2.2/openvpn-ui"
           python3 - "$SOURCE_COMMIT" <<'PY'
           import pathlib, subprocess, sys, zipfile
           commit = sys.argv[1]
@@ -97,14 +97,14 @@ jobs:
               for name in names:
                   assert archive.read(name) == pathlib.Path(name).read_bytes(), name
           PY
-          printf 'Compilation et tests : https://github.com/%s/actions/runs/%s\n' "$GH_REPO" "$RUN_ID" > "$RUNNER_TEMP/radio-v2.1-notes.md"
-          printf '\nCommit : %s\n\nCertificats revoques masques, compte Linux configurable, validation SSH par cle obligatoire et documentation dans docs/.\n\nFiltrage nftables conserve. Recette complete sur Debian 13 vierge restant a effectuer pour valider definitivement cette installation.\n' "$SOURCE_COMMIT" >> "$RUNNER_TEMP/radio-v2.1-notes.md"
-      - name: Publish radio-v2.1 from verified artifact
+          printf 'Compilation et tests : https://github.com/%s/actions/runs/%s\n' "$GH_REPO" "$RUN_ID" > "$RUNNER_TEMP/radio-v2.2-notes.md"
+          printf '\nCommit : %s\n\nCertificats revoques masques, compte Linux configurable, validation automatique d une nouvelle connexion SSH par cle sans recopie, clavier console applique avec setupcon --force et documentation dans docs/.\n\nFiltrage nftables conserve. Recette complete sur Debian 13 vierge restant a effectuer pour valider definitivement cette installation.\n' "$SOURCE_COMMIT" >> "$RUNNER_TEMP/radio-v2.2-notes.md"
+      - name: Publish radio-v2.2 from verified artifact
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create radio-v2.1 --verify-tag --latest --target "$GITHUB_SHA" \
-            --title 'OpenVPN UI - radio-v2.1' --notes-file "$RUNNER_TEMP/radio-v2.1-notes.md" \
+          gh release create radio-v2.2 --verify-tag --latest --target "$GITHUB_SHA" \
+            --title 'OpenVPN UI - radio-v2.2' --notes-file "$RUNNER_TEMP/radio-v2.2-notes.md" \
             dist/radio-openvpn-ui-linux-amd64.zip dist/radio-openvpn-ui-linux-amd64.zip.sha256 \
             dist/openvpn-ui dist/openvpn-ui.sha256 dist/source-commit.txt dist/deployment-source-commit.txt

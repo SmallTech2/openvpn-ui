@@ -32,8 +32,7 @@ pas une authentification SSH par mot de passe.
 Ne désactivez jamais les mots de passe avant la réussite de cette nouvelle connexion par clé.
 Après validation de cette preuve, le durcissement SSH désactive l’authentification par mot
 de passe et par clavier interactif, tout en conservant l’accès par clé ED25519.
-Dans le parcours préparé sur `main` pour la prochaine Release, gardez cette nouvelle
-session ouverte, revenez dans l'installateur et répondez `oui`. Aucune valeur de
+Gardez cette nouvelle session ouverte, revenez dans l'installateur et répondez `oui`. Aucune valeur de
 `SSH_CONNECTION` n'est à recopier. L'installateur repère d'abord sa position dans le
 journal SSH, puis recherche une authentification `Accepted publickey` postérieure à
 ce repère, pour le compte choisi et l'empreinte de la clé ED25519 installée.

@@ -27,12 +27,15 @@ sans le préfixe `sudo`.
 
 ## Télécharger et lancer l'installateur stable
 
+Consultez le [README principal](../README.md#version-stable-et-démarrage-rapide) et
+relevez le tag de la version stable. Saisissez ce tag à l'invite ci-dessous.
 Depuis un répertoire conservé après redémarrage, par exemple votre répertoire personnel :
 
 ```bash
 cd ~
+read -r -p 'Tag stable indiqué dans le README principal : ' VERSION_STABLE
 curl --fail --location --proto '=https' --proto-redir '=https' \
-  https://raw.githubusercontent.com/SmallTech2/openvpn-ui/radio-v2.1/Radio/deploy-vps.sh \
+  "https://raw.githubusercontent.com/SmallTech2/openvpn-ui/${VERSION_STABLE}/Radio/deploy-vps.sh" \
   -o deploy-vps.sh
 ```
 
@@ -87,10 +90,9 @@ saisie masquée et confirmation. Ils ne sont pas affichés dans le récapitulati
 Une seconde confirmation précède l'installation VPN.
 L'installateur impose la validation d'une nouvelle connexion par clé dans une seconde
 session SSH avant de poursuivre. Gardez la session d'installation ouverte et suivez
-les instructions affichées. Le parcours préparé pour la prochaine Release demande
+les instructions affichées. Le parcours demande
 simplement de confirmer que la nouvelle connexion fonctionne ; sa preuve par clé
-est recherchée automatiquement dans le journal SSH. Les Releases déjà publiées
-conservent leur propre procédure. Vérifiez l'accès par clé et le durcissement
+est recherchée automatiquement dans le journal SSH. Vérifiez l'accès par clé et le durcissement
 [selon le guide de sécurité](security.md#vérifier-laccès-par-clé).
 
 Pour l'accès local et le clavier de secours de l'hébergeur, consultez la
