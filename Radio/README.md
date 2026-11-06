@@ -1,112 +1,259 @@
-# Radio Bonheur - deploiement natif Debian 13
+# Deploiement natif OpenVPN — radio-v1
 
-VPS AMD64 independants, avec un reseau IPv4 prive configurable en CIDR.
-Nos choix actuels sont `10.1.0.0/16`, `10.2.0.0/16` et `10.3.0.0/16`.
-OpenVPN CE, OpenVPN UI precompile, Easy-RSA, systemd et nftables. Aucun Docker ni Go sur le VPS.
-Tous les clients ont une IPv4 fixe ; `client-to-client` est actif, sans `redirect-gateway`.
+## Version et perimetre valide
 
-## Premiere recette
+Version stable : [radio-v1](https://github.com/SmallTech2/openvpn-ui/releases/tag/radio-v1).
+La recette reelle sur Infomaniak Debian 13 a valide : installation complete, PKI,
+acces UI par tunnel SSH, deux clients a IP fixes connectes simultanement,
+communication interclients et avec `10.3.0.1`, Internet habituel conserve,
+puis reconnexion SSH et clients apres un redemarrage complet du VPS.
+Les services `openvpn@server`, `openvpn-ui`, `nftables` et `radio-renew-crl.timer`
+etaient actifs apres redemarrage. Cette validation est rapportee par l'exploitant.
 
-La Release requise pour les CIDR configurables est `radio-build-test3`.
-Ne reinitialiser aucun VPS d'exploitation avant sauvegarde et validation de la Release de recette.
-Sur le VPS Debian 13 vierge, avec un terminal interactif :
+Restent a valider sur le VPS reel : le cycle de revocation et le renouvellement effectif
+de la CRL. Voir la procedure plus bas. Les tests automatises historiques ne remplacent
+pas ces tests d'exploitation.
+
+## Prerequis
+
+- VPS vierge Debian 13, architecture x86_64/AMD64, systemd et droits root/sudo.
+- Session SSH interactive, commande `ip` (paquet `iproute2`) et `curl` pour le telechargement.
+- IPv4 publique fixe, acces HTTPS sortant aux miroirs Debian et a GitHub.
+- Cle SSH **publique ED25519** du poste administrateur. Ne pas fournir la cle privee
+  ni utiliser la cle de deploiement reservee a GitHub.
+- Autoriser le port SSH utilise et UDP 1194 dans le pare-feu de l'hebergeur.
+  Ne pas ouvrir TCP 8080 sur Internet.
+- Choisir un sous-reseau prive qui ne chevauche pas les reseaux des clients et du VPS.
+
+## Installation depuis la version figee
 
 ```sh
 curl --fail --location --proto '=https' --proto-redir '=https' \
-  https://raw.githubusercontent.com/SmallTech2/openvpn-ui/main/Radio/deploy-vps.sh \
+  https://raw.githubusercontent.com/SmallTech2/openvpn-ui/radio-v1/Radio/deploy-vps.sh \
   -o deploy-vps.sh
 sudo bash deploy-vps.sh
 ```
 
-Au premier lancement, apres confirmation, le script execute `apt-get update`,
-`apt-get full-upgrade` (en conservant les fichiers de configuration locaux),
-puis `apt-get autoremove --purge`, et redemarre le VPS.
-Apres reconnexion SSH, relancer **la meme commande** : `sudo bash deploy-vps.sh`.
-La reussite de la preparation et l'identifiant du demarrage sont conserves dans
-`/var/lib/radio-vpn/debian-upgrade-boot-id` : le script exige un redemarrage effectif,
-puis passe la mise a niveau deja terminee. Aucune reprise automatique ni sauvegarde de mot de passe.
-Une erreur APT interrompt le script avant l'enregistrement de cet etat et avant le redemarrage.
+Au premier lancement, une confirmation precede `apt-get update`, `apt-get full-upgrade`
+(en conservant les fichiers de configuration locaux) et `apt-get autoremove --purge`.
+Le VPS redemarre ensuite. Apres reconnexion SSH, relancer dans le meme repertoire :
 
-Le script propose ensuite l'IPv4 publique detectee (modifiable) et demande le reseau CIDR.
-Il accepte les sous-reseaux RFC1918 de /16 a /29, limites de la directive serveur OpenVPN,
-et refuse une adresse d'hote ou un chevauchement avec les routes presentes sur le VPS.
-Le serveur VPN utilise la premiere adresse utilisable : reseau + 1
-(par exemple `192.168.42.0/24` donne `192.168.42.1`).
-Les conflits avec les reseaux distants des futurs clients restent a verifier par l'administrateur.
-Apres la preparation Debian, un recapitulatif et une confirmation precedent la configuration du clavier.
-Une seconde confirmation precede l'installation apres la saisie des autres parametres.
-Les anciennes commandes avec arguments restent compatibles.
-Le script demande les deux mots de passe, la cle PUBLIQUE ED25519 du poste administrateur,
-l'organisation et l'email PKI. Ne pas fournir une cle privee ni la cle reservee a l'acces GitHub.
-Il initialise la base GUI, les configurations et une PKI neuve, puis demarre les services.
-Aucune etape GUI n'est necessaire ; seule la relance apres redemarrage est demandee.
-Les erreurs importantes provoquent un statut non nul, sans message de succes.
+```sh
+sudo bash deploy-vps.sh
+```
 
-## Acces et protection SSH
+L'etat `/var/lib/radio-vpn/debian-upgrade-boot-id` est enregistre uniquement apres
+reussite des commandes APT. Le script verifie le changement de demarrage et ne refait
+pas la mise a niveau. Il ne reprend pas automatiquement et ne stocke aucun mot de passe
+pour traverser le redemarrage.
 
-Le compte `technicien` dispose de sudo avec mot de passe et de la cle fournie.
-Les deux mots de passe acceptent tous les caracteres sur une ligne (espaces compris),
-avec huit caracteres minimum, saisie masquee et confirmation.
-La configuration SSH est validee avant rechargement. Les mots de passe SSH ne sont desactives
-que si le journal du boot prouve l'utilisation de cette cle sur la connexion courante.
-Sinon ils restent actifs : cette validation client ne peut pas etre deduite de la seule presence d'une cle publique.
-Apres une connexion technicien par cle, la commande facultative suivante termine ce durcissement :
+Le script propose l'IPv4 publique detectee, modifiable, puis demande :
+
+- Reseau VPN prive CIDR, par exemple `10.3.0.0/16`, `172.23.0.0/16` ou `192.168.42.0/24`.
+- Cle publique SSH, organisation et email de la PKI.
+- Apres confirmation et configuration interactive du clavier francais AZERTY :
+  mots de passe du compte `technicien` et de l'administrateur OpenVPN UI.
+
+Les deux mots de passe suivent la meme regle : huit caracteres minimum, aucune limite
+maximale ajoutee par le script, espaces, accents et symboles acceptes sur une ligne,
+saisie masquee et confirmation. Ils ne sont pas affiches dans le recapitulatif.
+Une seconde confirmation precede l'installation VPN.
+
+Les reseaux RFC1918 sont acceptes de /16 a /29, limites de la directive serveur OpenVPN
+avec `tun`. Une adresse d'hote a la place de l'adresse reseau et les chevauchements
+avec les routes presentes sur le VPS sont refuses. Les conflits avec les futurs reseaux
+clients restent a verifier par l'administrateur. Le serveur utilise toujours **reseau + 1** :
+`10.3.0.0/16` donne `10.3.0.1/16`, `192.168.42.0/24` donne `192.168.42.1/24`.
+
+Le script refuse de remplacer une installation ou une CA existante. Il telecharge le
+paquet de la Release `radio-v1`, verifie son SHA-256 puis les empreintes internes et
+utilise les sources de deploiement du commit inscrit dans ce paquet. Il n'utilise ni
+`main` ni la derniere version implicite d'une dependance Go.
+
+## Compte technicien et SSH
+
+`technicien` dispose d'un repertoire personnel, d'un shell Bash, de sudo avec mot de passe
+et de la cle fournie. La configuration SSH est validee avant rechargement.
+Les mots de passe SSH ne sont desactives qu'apres preuve, dans le journal du demarrage,
+d'une connexion avec cette cle. Sinon ils restent actifs.
+
+Apres connexion avec la cle du poste, la commande suivante peut terminer ce durcissement :
 
 ```sh
 sudo radio-secure-ssh "$SSH_CONNECTION"
 ```
 
-Elle controle la preuve de connexion, les regles SSH effectives et restaure l'ancienne configuration en cas d'erreur.
-La session initiale doit rester ouverte pendant le premier test de reconnexion.
+Garder la session ouverte et verifier une nouvelle connexion avant de la fermer.
 
-nftables autorise les ports SSH effectifs (y compris celui de la connexion en cours), UDP 1194,
-le loopback, ICMP et l'UI TCP 8080 uniquement depuis `tun0`.
-Il est active et persistant AVANT le demarrage de l'UI. Un retour arriere differe de trois minutes,
-et immediat sur erreur du script, restaure les anciennes regles/configuration et arrete VPN/UI.
-Le retour arriere est annule uniquement apres les controles locaux des services, du HTTP et de SSH.
-Le pare-feu de l'hebergeur doit egalement autoriser SSH et UDP 1194 ; ne pas y ouvrir TCP 8080.
+## Acces a OpenVPN UI
 
-GUI : `http://ADRESSE_SERVEUR_VPN:8080` depuis le VPN, ou tunnel depuis le PC :
-`ssh -L 8080:127.0.0.1:8080 technicien@IP_PUBLIQUE`, puis `http://127.0.0.1:8080`.
-Le management OpenVPN reste strictement sur `127.0.0.1:2080`.
+Le compte UI est `admin`, avec le mot de passe saisi. Depuis le VPN :
+`http://ADRESSE_SERVEUR_VPN:8080`.
+Depuis le poste administrateur, ouvrir un tunnel :
 
-## Configurations et exploitation
+```sh
+ssh -N -L 127.0.0.1:8080:127.0.0.1:8080 technicien@IP_PUBLIQUE
+```
 
-`RadioVpnNetwork` et `RadioPublicIP` sont generes dans `/opt/openvpn-ui-runtime/conf/app.conf`.
-Ils initialisent les valeurs SQLite et restent appliques aux sauvegardes des formulaires GUI.
-Les anciens sous-reseaux, routes et valeurs loopback des profils clients ne sont pas reutilises pour Radio.
-Les IP fixes sont controlees dans le reseau du serveur ; les adresses reservees et deja utilisees sont refusees.
-`nopool` et `ccd-exclusive` empechent les attributions dynamiques. Les fichiers CCD restent lisibles par OpenVPN.
-Les profils contiennent une seule copie complete des blocs PEM et `tls-crypt` ; les fichiers contenant
-les cles clientes sont prives. Les mots de passe clients ne sont plus interpoles dans un shell ni journalises.
+Puis ouvrir `http://127.0.0.1:8080`. Le management OpenVPN reste sur `127.0.0.1:2080`.
+L'UI ecoute sur TCP 8080 ; c'est nftables qui bloque son acces public. Ne pas supprimer
+ces regles ni demarrer l'UI sans cette protection.
 
-`/etc/openvpn/pki` pointe sur `/usr/share/easy-rsa/pki`. Une CA existante interdit `init_all`.
-La suppression des fichiers d'un client ne supprime jamais les entrees revoquees de l'index de la CA.
-Le renouvellement hebdomadaire via `radio-renew-crl.timer` ne peut donc pas oublier ces revocations.
-La CRL initiale est controlee et un renouvellement est execute pendant le deploiement.
-Les changements de configuration serveur redemarrent OpenVPN via systemd ; les modifications des
-modeles clients et variables Easy-RSA n'arretent pas le VPN.
+## Clients, IP fixes et communication
 
-## Compilation, ressources et Release de recette
+Dans la page des certificats de l'UI, creer un certificat par appareil avec un nom unique
+et une IPv4 fixe libre du reseau VPN. Ne pas utiliser l'adresse reseau, celle du serveur,
+la diffusion ou une IP deja attribuee. Par exemple, pour `10.3.0.0/16` : serveur
+`10.3.0.1`, clients `10.3.0.10` et `10.3.0.11`.
 
-`.github/workflows/radio-build.yml` compile et teste les branches `main`/`radio/**`, les PR et les tags de recette.
-Le ZIP contient le binaire, `static/`, `views/`, `swagger/`, les sources `Radio/`, la licence,
-le commit source et les empreintes internes. Une empreinte du ZIP est publiee separement.
-Le deploiement verifie le ZIP avant extraction, puis son contenu ; il telecharge les scripts de la revision compilee.
-`RADIO_SOURCE_REF` accepte une branche, un tag ou un commit, mais sa revision resolue doit correspondre
-au binaire de la Release. `RADIO_RELEASE_TAG` choisit une autre Release de recette compatible.
+Telecharger chaque profil `.ovpn` dans l'UI et le transmettre de facon confidentielle.
+Il contient le certificat client, sa cle privee, la CA et `tls-crypt`.
+Les fichiers CCD de `/etc/openvpn/staticclients` portent les IP fixes avec le bon masque.
+`nopool` et `ccd-exclusive` interdisent les attributions dynamiques ; il n'y a donc pas
+`ifconfig-pool-persist`. `client-to-client` permet la communication entre clients.
+Aucun `redirect-gateway` n'est pousse : les clients conservent leur Internet habituel.
 
-Apres succes des controles, un tag `radio-build-testN` declenche la publication d'une **preversion**.
-Le workflow manuel accepte aussi un nom de preversion ; laisser ce champ vide pour compiler seulement.
-Les noms de version definitive, dont `radio-v1`, sont refuses par ce workflow de publication.
-Aucun workflow ne se connecte a un VPS ni ne deploie un serveur.
+Le pare-feu local de chaque client doit autoriser le trafic VPN souhaite. Les essais
+reels de deux clients, interconnexion et reconnexion apres reboot sont valides.
 
-## Limites de validation
+## Revocation et CRL : procedure a valider sur le VPS reel
 
-Les tests Go couvrent les trois reseaux et les IP fixes. Les tests du binaire verifient SQLite,
-les configurations generees et l'echec explicite d'une initialisation invalide.
-Les tests Easy-RSA 3.2.2 generent de vrais certificats, profils et CRL, y compris renouvellement,
-revocation, suppression des fichiers et nouvelle CRL. Aucun daemon OpenVPN n'est lance par ces tests.
-Ces controles ne remplacent pas une recette sur Debian 13 : demarrage systemd, acces distant SSH,
-filtrage reseau reel, connexion de deux clients fixes, trafic client-to-client et redemarrage du VPS
-restent a verifier avant toute version definitive.
+1. Utiliser un client de test, relever son nom et son numero de serie dans l'UI,
+   et conserver son ancien profil hors du depot pour le test de refus.
+2. Dans l'UI, revoquer le certificat correspondant. Le script cible son numero de serie,
+   conserve l'entree revoquee de l'index CA et regenere la CRL.
+3. Deconnecter le client de test, puis tenter une nouvelle connexion avec l'ancien profil :
+   elle doit etre refusee. Verifier que l'autre client reste utilisable. Ne pas supposer
+   qu'une session deja etablie est immediatement coupee par la nouvelle CRL.
+4. Verifier la CRL, declencher son renouvellement et retester le refus apres regeneration
+   puis apres reboot. Les numeros de serie revoques doivent toujours etre presents.
+5. L'action **Delete files**, facultative apres revocation, nettoie les fichiers clients ;
+   elle ne remplace pas la revocation et ne purge pas l'historique CA.
+
+Commandes de controle et de renouvellement :
+
+```sh
+sudo openssl crl -in /etc/openvpn/pki/crl.pem -noout -lastupdate -nextupdate
+sudo openssl crl -in /etc/openvpn/pki/crl.pem -noout -text
+sudo systemctl start radio-renew-crl.service
+sudo journalctl -u radio-renew-crl.service -n 50 --no-pager
+systemctl list-timers --all radio-renew-crl.timer
+```
+
+Le service execute Easy-RSA `gen-crl` et rend la CRL lisible par OpenVPN.
+Le timer est hebdomadaire, persistant, avec delai aleatoire. Son etat actif apres reboot
+est valide ; l'execution reelle du renouvellement et le refus d'un certificat revoque
+restent **a valider**. Ne pas utiliser les commandes de suppression de PKI de la GUI
+pour retirer un seul client.
+
+## Fichiers et services
+
+| Element | Role |
+| --- | --- |
+| `/opt/openvpn-ui-runtime` | Binaire, ressources UI, configuration et base SQLite |
+| `/opt/scripts` | Scripts necessaires aux operations de la GUI |
+| `/etc/openvpn/server.conf` | Configuration du serveur VPN |
+| `/etc/openvpn/config/client.conf` | Modele utilise pour produire les profils clients |
+| `/etc/openvpn/staticclients` | IP fixes CCD |
+| `/etc/openvpn/clients` | Profils clients confidentiels |
+| `/usr/share/easy-rsa/pki` | PKI unique ; `/etc/openvpn/pki` est un lien vers elle |
+| `/etc/openvpn-ui.env` | Mot de passe initial UI, acces root uniquement |
+| `/etc/radio-vpn-deployed` | Release, commits du deploiement et du binaire, IP et reseau |
+
+`openvpn@server.service` lance OpenVPN, `openvpn-ui.service` lance l'interface,
+`radio-renew-crl.service` regenere la CRL et `radio-renew-crl.timer` planifie cette operation.
+L'UI depend de `nftables.service`. Le pare-feu autorise SSH sur les ports effectifs,
+UDP 1194, loopback, ICMP et TCP 8080 uniquement depuis `tun0`.
+
+A l'installation, un retour arriere systemd est arme pour trois minutes, avec retour
+immediat sur erreur. Il restaure les regles precedentes et arrete VPN/UI. Il n'est annule
+qu'apres les controles locaux des services, de l'adresse CIDR de `tun0`, de l'UDP et du HTTP.
+Ce mecanisme a ete observe pendant les recettes ; il ne remplace pas le test d'une
+nouvelle connexion SSH depuis le poste.
+
+## Diagnostic
+
+```sh
+systemctl --no-pager status openvpn@server openvpn-ui nftables radio-renew-crl.timer
+sudo journalctl -u openvpn@server -u openvpn-ui -n 100 --no-pager
+sudo tail -n 100 /var/log/openvpn/openvpn.log
+ip -j -4 address show dev tun0
+sudo ss -lunp
+sudo nft list ruleset
+sudo /usr/sbin/sshd -t
+sudo cat /etc/radio-vpn-deployed
+```
+
+## Refaire un VPS complet
+
+Conserver le depot et les fichiers de la Release, noter l'IPv4, le reseau, l'identite PKI
+et la cle publique SSH a utiliser. Installer un **nouveau Debian 13 vierge**, puis suivre
+la procedure du tag `radio-v1`, y compris la relance apres la mise a niveau et le reboot.
+Une reconstruction vierge genere une nouvelle CA : recreer les clients et redistribuer
+les profils. Elle ne restaure pas les identites existantes.
+
+La conservation des anciennes identites exige une sauvegarde confidentielle de la PKI,
+de la base et des fichiers d'exploitation. Ces donnees ne doivent jamais etre publiees
+sur GitHub. La copie locale du depot et des Releases n'inclut pas la PKI du VPS.
+Aucun systeme supplementaire de sauvegarde VPS n'est installe par ce projet.
+
+## Sources, binaire et reconstruction du logiciel
+
+Le binaire valide est conserve **octet pour octet** depuis `radio-build-test3`, sources
+`684151fb3a0ad27e392f79e617cb649583c4e8ff`. SHA-256 :
+`5e5255d176839be76df6d08fd373dd62fc915fd86bb2ffb90ad9bfe34d8b53b8`.
+Le deploiement fonctionnel valide est `db5b79d24ceb57eeee864e3ec15783ffba51fc91`.
+Le tag `radio-v1` ajoute le gel des references et la documentation sans changer le code Go.
+
+Le paquet stable contient : `source-commit.txt` (sources du binaire),
+`deployment-source-commit.txt` (sources des scripts et modeles figes),
+`validated-deployment-commit.txt` (recette), `openvpn-ui.sha256` et `SHA256SUMS`.
+Le ZIP a sa propre empreinte externe. Les scripts sont recuperes par commit exact.
+Le tag et les fichiers de Release doivent etre conserves, sans remplacement en place.
+
+Les dependances Go sont versionnees dans `go.mod`, `go.sum` et `vendor/`.
+Une reconstruction technique exige Go 1.26.5, un compilateur C pour SQLite/CGO,
+Linux AMD64 et les outils de paquetage Bash, Python 3 et ZIP. La commande de compilation
+est dans `.github/workflows/radio-build.yml`, avec `-mod=vendor` et `CGO_ENABLED=1`.
+Elle n'est pas executee pendant le gel stable. Les scripts de publication restent distincts
+du deploiement sur le VPS.
+
+Les elements externes restent : l'outil Go, le compilateur C et les outils de construction,
+les actions GitHub, et les paquets des miroirs Debian 13 (OpenVPN, Easy-RSA, OpenSSL,
+Python, systemd, nftables...). Les paquets Debian et le runner `ubuntu-24.04` evoluent :
+le depot permet de reconstruire les sources, mais ne garantit pas un nouveau binaire
+identique octet pour octet ni les memes versions de paquets systeme. Le binaire deja
+valide et ses empreintes sont donc conserves dans la Release et dans la copie locale.
+
+## Publication et droits GitHub
+
+Tous les workflows ont `contents: read` par defaut. L'ecriture `contents: write` est limitee
+aux jobs de publication de Release ; le jeton est fourni uniquement a l'etape de publication.
+Le workflow de recette ne publie que des preversions `radio-build-testN`, par tag ou demande
+manuelle explicite. Les pull requests ne publient pas. Le workflow stable ne publie que lors
+de la creation explicite du tag exact `radio-v1`, sans compilation ni tests lourds.
+Il verifie les empreintes du paquet et du binaire valides, et l'absence de changement des
+sources Go, dependances et ressources UI depuis le commit du binaire.
+
+Les controles administrateur n'ont pas pu etre lus avec la cle Git SSH de ce projet.
+A verifier dans **SmallTech2/openvpn-ui > Settings** :
+
+- **Actions > General > Workflow permissions** : lecture seule par defaut ; ne pas autoriser
+  les workflows a creer/approuver des pull requests si ce n'est pas necessaire.
+- **Deploy keys** : apres cette publication, retirer le droit d'ecriture de la cle Codex
+  ou supprimer cette cle si elle n'est plus necessaire.
+- **Collaborators / Manage access** : conserver seulement les personnes et integrations utiles,
+  et les droits minimums necessaires.
+- **Rules > Rulesets** : proteger `radio-v1` contre modification et suppression ; proteger
+  `main` contre les force-push et limiter ses acces d'ecriture selon votre organisation.
+- Ne jamais joindre une PKI, une cle SSH privee, un profil client ou un mot de passe aux
+  commits ou aux Releases. Les seuls secrets necessaires aux jobs sont les jetons temporaires GitHub.
+
+## Copie locale a conserver sur Windows
+
+Conserver ensemble le bundle Git `openvpn-ui.bundle` (historique et tags), l'archive des
+sources `radio-v1-source.zip`, les sept fichiers de la Release et `SAUVEGARDE.txt`.
+Le dossier `Sauvegarde-OpenVPN-radio-v1` de l'espace de travail contient cette copie.
+Il peut etre pris en charge par la sauvegarde existante vers les deux NAS Synology ;
+aucune tache ou infrastructure de sauvegarde supplementaire n'est creee.
+Le bundle se restaure avec `git clone openvpn-ui.bundle openvpn-ui`.

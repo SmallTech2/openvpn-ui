@@ -4,7 +4,7 @@
 set -Eeuo pipefail
 umask 077
 REPO='SmallTech2/openvpn-ui'
-RELEASE_TAG="${RADIO_RELEASE_TAG:-radio-build-test3}"
+RELEASE_TAG="${RADIO_RELEASE_TAG:-radio-v1}"
 SOURCE_REF="${RADIO_SOURCE_REF:-}"
 INSTALL_ROOT='/opt/openvpn-ui-runtime'
 PREPARATION_STATE='/var/lib/radio-vpn/debian-upgrade-boot-id'
@@ -148,7 +148,7 @@ install_radio(){
   local public_ip="${1:-}" net="${2:-}" pubkey org email detected='' routes mask server_ip prefix
   [[ ! -e "$INSTALL_ROOT" && ! -e /etc/openvpn/server.conf && ! -e /etc/openvpn/pki ]] || die 'Installation existante detectee. Refus de remplacer.'
   [[ ! -f /etc/radio-vpn-deployed ]] || die 'Deploiement deja effectue.'
-  [[ "$RELEASE_TAG" =~ ^[a-zA-Z0-9._-]+$ && "$RELEASE_TAG" != radio-v1 ]] || die 'Utiliser une Release de recette, pas radio-v1.'
+  [[ "$RELEASE_TAG" =~ ^[a-zA-Z0-9._-]+$ ]] || die 'Nom de Release invalide.'
   [[ -z "$SOURCE_REF" || ( "$SOURCE_REF" =~ ^[a-zA-Z0-9._/-]+$ && "$SOURCE_REF" != *..* ) ]] || die 'Reference Git invalide.'
   prepare_debian
   command -v ip >/dev/null || die 'La commande ip (iproute2) est necessaire pour verifier les routes avant installation.'
@@ -208,7 +208,7 @@ install_radio(){
   printf '%s\n' "$pubkey" > "$TMP/admin.pub"
   ssh-keygen -lf "$TMP/admin.pub" >/dev/null || die 'Cle publique SSH illisible.'
 
-  log 'Release de recette : verification SHA-256 avant extraction'
+  log 'Release figee : verification SHA-256 avant extraction'
   local archive='radio-openvpn-ui-linux-amd64.zip' compiled_commit source_commit
   local release_url="https://github.com/$REPO/releases/download/$RELEASE_TAG"
   fetch "$release_url/$archive" "$TMP/$archive"
@@ -222,12 +222,19 @@ install_radio(){
   compiled_commit="$(cat "$TMP/bin/source-commit.txt")"
   [[ "$compiled_commit" =~ ^[0-9a-f]{40}$ ]] || die 'Commit du binaire invalide.'
   source_commit="$compiled_commit"
+  # La version stable reutilise le binaire valide, avec les scripts finalises separement.
+  [[ "$RELEASE_TAG" != radio-v1 || -s "$TMP/bin/deployment-source-commit.txt" ]] || die 'Commit de deploiement absent de la Release stable.'
+  if [[ -s "$TMP/bin/deployment-source-commit.txt" ]]; then
+    source_commit="$(cat "$TMP/bin/deployment-source-commit.txt")"
+    [[ "$source_commit" =~ ^[0-9a-f]{40}$ ]] || die 'Commit du deploiement invalide.'
+  fi
   if [[ -n "$SOURCE_REF" ]]; then
     local encoded_ref
     encoded_ref=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$SOURCE_REF")
     fetch "https://api.github.com/repos/$REPO/commits/$encoded_ref" "$TMP/commit.json"
-    source_commit=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha"])' "$TMP/commit.json")
-    [[ "$source_commit" == "$compiled_commit" ]] || die 'La revision demandee ne correspond pas au binaire compile. Publier une nouvelle Release.'
+    local requested_commit
+    requested_commit=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha"])' "$TMP/commit.json")
+    [[ "$requested_commit" == "$source_commit" ]] || die 'La revision demandee ne correspond pas aux sources de deploiement de la Release.'
   fi
   fetch "https://github.com/$REPO/archive/$source_commit.tar.gz" "$TMP/source.tgz"
   tar -xzf "$TMP/source.tgz" -C "$TMP/src" --strip-components=1
@@ -316,7 +323,7 @@ install_radio(){
     echo 'SSH : cle installee, mots de passe conserves tant que l acces par cle n est pas confirme.'
     echo 'Depuis une connexion technicien par cle : sudo radio-secure-ssh "$SSH_CONNECTION"'
   fi
-  printf 'release_tag=%s\nrelease_source_commit=%s\npublic_ip=%s\nnetwork=%s\n' "$RELEASE_TAG" "$compiled_commit" "$public_ip" "$net" > /etc/radio-vpn-deployed
+  printf 'release_tag=%s\nrelease_source_commit=%s\nbinary_source_commit=%s\npublic_ip=%s\nnetwork=%s\n' "$RELEASE_TAG" "$source_commit" "$compiled_commit" "$public_ip" "$net" > /etc/radio-vpn-deployed
   log 'Installation terminee : OpenVPN actif, UI protegee, CRL planifiee.'
   echo "GUI depuis le VPN : http://$server_ip:8080"
   echo "Tunnel SSH : ssh -L 8080:127.0.0.1:8080 technicien@$public_ip"

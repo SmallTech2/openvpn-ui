@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Archive du binaire ET des ressources de la meme revision Git.
+# Archive du binaire et des ressources, avec leurs revisions Git explicites.
 set -Eeuo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$ROOT"
@@ -9,7 +9,12 @@ STAGE=$(mktemp -d)
 trap 'rm -rf -- "$STAGE"' EXIT
 cp "$BINARY" "$STAGE/openvpn-ui"
 cp -a static views swagger Radio LICENSE "$STAGE/"
-git rev-parse HEAD > "$STAGE/source-commit.txt"
+DEPLOYMENT_COMMIT=$(git rev-parse HEAD)
+printf '%s\n' "${BINARY_SOURCE_COMMIT:-$DEPLOYMENT_COMMIT}" > "$STAGE/source-commit.txt"
+printf '%s\n' "$DEPLOYMENT_COMMIT" > "$STAGE/deployment-source-commit.txt"
+if [[ -n "${VALIDATED_DEPLOYMENT_COMMIT:-}" ]]; then
+  printf '%s\n' "$VALIDATED_DEPLOYMENT_COMMIT" > "$STAGE/validated-deployment-commit.txt"
+fi
 (cd "$STAGE"; sha256sum openvpn-ui > openvpn-ui.sha256)
 (cd "$STAGE"; find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
 mkdir -p dist

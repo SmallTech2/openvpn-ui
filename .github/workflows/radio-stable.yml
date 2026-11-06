@@ -1,0 +1,56 @@
+name: Radio Bonheur - Freeze validated radio-v1
+
+# Publication uniquement lors de la creation explicite du tag definitif.
+on: create
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: github.event.ref_type == 'tag' && github.event.ref == 'radio-v1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout frozen deployment sources
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: refs/tags/radio-v1
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reuse exact validated binary without compilation
+        env:
+          BINARY_COMMIT: 684151fb3a0ad27e392f79e617cb649583c4e8ff
+          VALIDATED_DEPLOYMENT_COMMIT: db5b79d24ceb57eeee864e3ec15783ffba51fc91
+        run: |
+          set -euo pipefail
+          for script in Radio/*.sh Radio/scripts/*.sh; do bash -n "$script"; done
+          git diff --exit-code "$BINARY_COMMIT" HEAD -- '*.go' go.mod go.sum vendor static views swagger
+          curl --fail --location --proto '=https' --proto-redir '=https' \
+            https://github.com/SmallTech2/openvpn-ui/releases/download/radio-build-test3/radio-openvpn-ui-linux-amd64.zip \
+            -o "$RUNNER_TEMP/validated.zip"
+          echo "5acdc81bed60627e86d1f2a24afea4178ab74c0780db1e6eb5507aece3ab1431  $RUNNER_TEMP/validated.zip" | sha256sum -c -
+          mkdir "$RUNNER_TEMP/validated"
+          unzip -q "$RUNNER_TEMP/validated.zip" -d "$RUNNER_TEMP/validated"
+          (cd "$RUNNER_TEMP/validated"; sha256sum -c SHA256SUMS)
+          [[ "$(cat "$RUNNER_TEMP/validated/source-commit.txt")" == "$BINARY_COMMIT" ]]
+          echo "5e5255d176839be76df6d08fd373dd62fc915fd86bb2ffb90ad9bfe34d8b53b8  $RUNNER_TEMP/validated/openvpn-ui" | sha256sum -c -
+          BINARY_SOURCE_COMMIT="$BINARY_COMMIT" bash Radio/package-release.sh "$RUNNER_TEMP/validated/openvpn-ui"
+          cp "$RUNNER_TEMP/validated/openvpn-ui" dist/openvpn-ui
+          (cd dist; sha256sum openvpn-ui > openvpn-ui.sha256)
+          printf '%s\n' "$BINARY_COMMIT" > dist/source-commit.txt
+          git rev-parse HEAD > dist/deployment-source-commit.txt
+          printf '%s\n' "$VALIDATED_DEPLOYMENT_COMMIT" > dist/validated-deployment-commit.txt
+          (cd dist; sha256sum -c radio-openvpn-ui-linux-amd64.zip.sha256)
+      - name: Publish stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create radio-v1 --verify-tag --latest \
+            --title 'Radio Bonheur - radio-v1' --notes-file Radio/RELEASE-radio-v1.md \
+            dist/radio-openvpn-ui-linux-amd64.zip dist/radio-openvpn-ui-linux-amd64.zip.sha256 \
+            dist/openvpn-ui dist/openvpn-ui.sha256 \
+            dist/source-commit.txt dist/deployment-source-commit.txt dist/validated-deployment-commit.txt
