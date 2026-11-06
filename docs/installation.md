@@ -87,8 +87,14 @@ saisie masquée et confirmation. Ils ne sont pas affichés dans le récapitulati
 Une seconde confirmation précède l'installation VPN.
 L'installateur impose la validation d'une nouvelle connexion par clé dans une seconde
 session SSH avant de poursuivre. Gardez la session d'installation ouverte et suivez
-les instructions affichées. Vérifiez l'accès par clé et le durcissement
+les instructions affichées. Le parcours préparé pour la prochaine Release demande
+simplement de confirmer que la nouvelle connexion fonctionne ; sa preuve par clé
+est recherchée automatiquement dans le journal SSH. Les Releases déjà publiées
+conservent leur propre procédure. Vérifiez l'accès par clé et le durcissement
 [selon le guide de sécurité](security.md#vérifier-laccès-par-clé).
+
+Pour l'accès local et le clavier de secours de l'hébergeur, consultez la
+[section console VNC](security.md#console-vnc-ou-console-de-secours).
 
 Les réseaux RFC1918 sont acceptés de `/16` à `/29`, limites de la directive serveur OpenVPN
 avec `tun`. Une adresse d'hôte à la place de l'adresse réseau et les chevauchements

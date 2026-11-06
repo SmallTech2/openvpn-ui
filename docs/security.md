@@ -32,8 +32,24 @@ pas une authentification SSH par mot de passe.
 Ne désactivez jamais les mots de passe avant la réussite de cette nouvelle connexion par clé.
 Après validation de cette preuve, le durcissement SSH désactive l’authentification par mot
 de passe et par clavier interactif, tout en conservant l’accès par clé ED25519.
-Si l'installateur demande les valeurs de `echo "$SSH_CONNECTION"` dans cette nouvelle
-session, transmettez-les à sa demande et gardez les deux sessions ouvertes.
+Dans le parcours préparé sur `main` pour la prochaine Release, gardez cette nouvelle
+session ouverte, revenez dans l'installateur et répondez `oui`. Aucune valeur de
+`SSH_CONNECTION` n'est à recopier. L'installateur repère d'abord sa position dans le
+journal SSH, puis recherche une authentification `Accepted publickey` postérieure à
+ce repère, pour le compte choisi et l'empreinte de la clé ED25519 installée.
+La confirmation seule ne suffit pas. Sans preuve correspondante, le durcissement
+n'est pas appliqué et l'utilisateur peut ouvrir une nouvelle connexion puis réessayer.
+Les contrôles effectifs et la restauration après échec restent obligatoires.
+
+Cette détection dépend du journal systemd du service SSH, de sa disponibilité et du
+format des messages OpenSSH. Si le journal est inaccessible, incomplet ou ne contient
+pas la preuve attendue, la validation échoue sans désactiver les accès existants.
+Une connexion multiplexée ne crée pas nécessairement une nouvelle authentification :
+utilisez la commande ci-dessus. Le journal prouve une authentification réussie, pas
+que la session restera ouverte ; conservez-la et testez encore l'accès après durcissement.
+L'adresse locale et le port utilisés pour `sshd -T` sont ceux de la session d'installation
+(à défaut, l'adresse publique et le port SSH effectif). Ce parcours suppose que la
+nouvelle connexion utilise ce même point d'entrée SSH.
 
 ## Vérifier le durcissement effectif
 
@@ -62,6 +78,30 @@ Un contrôle manquant ou en échec ne constitue pas un durcissement réussi.
 
 Gardez les sessions existantes ouvertes et vérifiez une nouvelle connexion par clé
 après tout rechargement de SSH avant de les fermer.
+
+## Console VNC ou console de secours
+
+La console proposée par l'hébergeur permet d'intervenir lorsque SSH ou OpenVPN sont
+inaccessibles. Son accès et son comportement dépendent aussi de l'hébergeur.
+Le durcissement SSH par clé ne désactive pas l'authentification locale par mot de passe :
+conservez donc un mot de passe Linux fonctionnel pour le compte administrateur.
+
+La disposition du clavier de cette console peut différer de celle de votre PC.
+Les utilisateurs français peuvent sélectionner le français AZERTY, sans que ce choix
+soit imposé aux autres utilisateurs. La disposition doit aussi être effectivement
+appliquée à la console Debian ; le seul contenu de `/etc/default/keyboard` ne suffit
+pas à le confirmer. Vérifiez la saisie dans la console de secours.
+
+Pour dépanner manuellement, installez les paquets nécessaires, choisissez la disposition,
+puis appliquez-la :
+
+```bash
+sudo apt install -y console-setup keyboard-configuration
+sudo dpkg-reconfigure keyboard-configuration
+sudo setupcon --force
+```
+
+Ces commandes concernent le clavier de la console Debian, pas celui de votre terminal SSH.
 
 ## Filtrage entrant avec nftables
 

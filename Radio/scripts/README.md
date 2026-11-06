@@ -29,8 +29,9 @@ La planification systemd de la CRL est créée par `../deploy-vps.sh`.
 
 Le helper `secure-ssh.sh` détermine le compte via `SUDO_USER` et son répertoire
 via `getent passwd` ; aucun nom de compte n'est fixé dans ce script.
-L'installateur récupère cette correction par commit exact, distinct des sources figées
-du paquet du binaire, puis installe `/usr/local/bin/radio-secure-ssh` et la copie de `/opt/scripts`.
+L'installateur récupère le helper depuis le commit de déploiement inscrit dans le paquet
+(avec une exception de compatibilité historique), puis installe `/usr/local/bin/radio-secure-ssh`
+et la copie de `/opt/scripts`.
 La référence du helper figure dans `SSH_HARDENING_COMMIT` et dans l'état de déploiement.
 
 La validation SSH est obligatoire avant la suite de l'installation : preuve dans le journal
@@ -39,7 +40,12 @@ et contextualisé, puis rechargement. Les mots de passe et le clavier interactif
 et `AuthenticationMethods publickey` impose la clé seule. Un échec après modification provoque
 la restauration du fichier précédent. Le helper ne redémarre pas le service SSH.
 
-La version installée doit être lancée avec sudo depuis une session par clé du compte
-administrateur, en lui transmettant `"$SSH_CONNECTION"`. Voir le [guide de sécurité](../../docs/security.md).
+Pour la prochaine publication, l'installateur mémorise un curseur du journal avant
+de demander une nouvelle connexion. Après confirmation, il appelle le helper avec
+`--after-cursor CURSOR ADRESSE_LOCALE PORT_SSH` et `SUDO_USER` égal au compte choisi.
+Le helper recherche automatiquement l'authentification par clé après ce curseur ;
+aucune recopie de `SSH_CONNECTION` n'est demandée. L'ancien appel manuel depuis
+une session administrateur avec `sudo radio-secure-ssh "$SSH_CONNECTION"` reste accepté.
+Voir le [guide de sécurité](../../docs/security.md#vérifier-laccès-par-clé).
 La disponibilité de ce parcours dans une publication est indiquée par son installateur ;
 ne supposez pas que les évolutions du dépôt sont déjà incluses dans une Release publiée.

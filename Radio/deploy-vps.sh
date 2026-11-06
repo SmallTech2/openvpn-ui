@@ -138,22 +138,28 @@ sys.exit(0 if any(
   return 1
 }
 require_secure_admin_ssh(){
-  local admin_user="$1" public_ip="$2" connection ssh_port
+  local admin_user="$1" public_ip="$2" answer ssh_port server_ip cursor journal
   [[ -x /usr/local/bin/radio-secure-ssh ]] || die 'Commande /usr/local/bin/radio-secure-ssh absente ou non executable.'
   ssh_port=$(awk '{print $4}' <<< "${SSH_CONNECTION:-}")
   if [[ ! "$ssh_port" =~ ^[0-9]+$ ]]; then
     ssh_port=$(/usr/sbin/sshd -T | awk '$1=="port" && !found {print $2; found=1}')
   fi
   [[ "$ssh_port" =~ ^[0-9]+$ ]] || die 'Port SSH introuvable pour la validation par cle.'
+  server_ip=$(awk '{print $3}' <<< "${SSH_CONNECTION:-}")
+  server_ip="${server_ip:-$public_ip}"
+  # Seules les authentifications posterieures a ce point pourront servir de preuve.
+  journal=$(journalctl -b -u ssh -n 1 --show-cursor --no-pager -o cat) || die 'Journal SSH inaccessible ; acces existants conserves.'
+  cursor=$(awk '/^-- cursor: / {print $3}' <<< "$journal")
+  [[ -n "$cursor" ]] || die 'Position du journal SSH introuvable ; acces existants conserves.'
   log 'Validation SSH par cle obligatoire avant la suite de l installation'
   echo 'Garder cette session ouverte. Depuis un AUTRE terminal du poste administrateur :'
   printf 'ssh -o ControlMaster=no -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no -p %s %s@%s\n' "$ssh_port" "$admin_user" "$public_ip"
   echo 'Ajouter -i CHEMIN_CLE_PRIVEE si necessaire. Ne jamais copier la cle privee sur le VPS.'
-  echo 'Dans la nouvelle session, executer : echo "$SSH_CONNECTION"'
-  echo 'La garder ouverte et copier les quatre valeurs affichees ci-dessous.'
+  echo 'Garder la nouvelle session ouverte, puis confirmer ici. Aucune valeur a recopier.'
   while :; do
-    read -r -p 'SSH_CONNECTION de la nouvelle session administrateur : ' connection </dev/tty || die 'Validation SSH interrompue ; installation non terminee.'
-    if SUDO_USER="$admin_user" /usr/local/bin/radio-secure-ssh "$connection"; then
+    read -r -p 'La nouvelle connexion par cle fonctionne-t-elle ? [oui/N] : ' answer </dev/tty || die 'Validation SSH interrompue ; installation non terminee.'
+    [[ "$answer" == oui || "$answer" == OUI ]] || continue
+    if SUDO_USER="$admin_user" /usr/local/bin/radio-secure-ssh --after-cursor "$cursor" "$server_ip" "$ssh_port"; then
       return 0
     fi
     echo 'Durcissement non confirme : corriger le probleme puis verifier une nouvelle connexion par cle.'

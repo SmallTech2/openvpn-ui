@@ -20,10 +20,19 @@ ssh-keygen(){
 }
 journalctl(){
   [[ "$TEST_CASE" != journal-error ]] || return 1
+  if [[ "${TEST_AUTO:-no}" == yes ]]; then
+    [[ "$*" == '-b -u ssh --after-cursor=fixture-cursor --no-pager -o cat' ]] || return 1
+    # Une ancienne connexion existe, mais aucune nouvelle entree apres le curseur.
+    [[ "$TEST_CASE" != old-connection && "$TEST_CASE" != multiplexed ]] || return 0
+  fi
   if [[ "$TEST_CASE" == wrong-key ]]; then
     echo "Accepted publickey for $TEST_USER from 192.0.2.10 port 50000 ssh2: ED25519 SHA256:other"
   elif [[ "$TEST_CASE" == wrong-user ]]; then
     echo 'Accepted publickey for other from 192.0.2.10 port 50000 ssh2: ED25519 SHA256:fixture'
+  elif [[ "$TEST_CASE" == password ]]; then
+    echo "Accepted password for $TEST_USER from 192.0.2.10 port 50000 ssh2"
+  elif [[ "$TEST_CASE" == key-prefix ]]; then
+    echo "Accepted publickey for $TEST_USER from 192.0.2.10 port 50000 ssh2: ED25519 SHA256:fixtureOTHER"
   else
     echo "Accepted publickey for $TEST_USER from 192.0.2.10 port 50000 ssh2: ED25519 SHA256:fixture"
   fi
@@ -56,11 +65,11 @@ systemctl(){
 
 
 class SSHHardeningTest(unittest.TestCase):
-    def run_case(self, case, user="alice"):
+    def run_case(self, case, user="alice", automatic=False):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             config, trace = root / "sshd.conf", root / "trace"
-            original = "PubkeyAuthentication yes\n"
+            original = "PubkeyAuthentication yes\nPasswordAuthentication yes\nKbdInteractiveAuthentication yes\n"
             config.write_text(original, encoding="utf-8", newline="\n")
             trace.write_text("")
             # Seule la copie de test remplace la garde root et les chemins systeme.
@@ -71,8 +80,9 @@ class SSHHardeningTest(unittest.TestCase):
             env = dict(os.environ, SUDO_USER=user, TEST_USER=user, TEST_CASE=case,
                        SSH_CONNECTION="192.0.2.10 50000 192.0.2.20 2222",
                        TEST_CONFIG=config.as_posix(), TEST_TRACE=trace.as_posix(),
-                       TEST_FAILED=(root / "failed").as_posix())
-            result = subprocess.run([BASH], input=MOCKS + helper, encoding="utf-8", capture_output=True, env=env)
+                       TEST_FAILED=(root / "failed").as_posix(), TEST_AUTO="yes" if automatic else "no")
+            args = "set -- --after-cursor fixture-cursor 192.0.2.20 2222\n" if automatic else ""
+            result = subprocess.run([BASH], input=MOCKS + args + helper, encoding="utf-8", capture_output=True, env=env)
             return result, config.read_text(), trace.read_text(), original
 
     def test_success_for_configurable_accounts(self):
@@ -94,18 +104,39 @@ class SSHHardeningTest(unittest.TestCase):
                 self.assertEqual(config, original)
                 self.assertEqual(trace, "")
 
+    def test_automatic_new_key_connection_for_custom_accounts(self):
+        for user in ("technicien", "alice", "ops-admin_2", "_admin", "a" * 32):
+            with self.subTest(user=user):
+                result, config, trace, _ = self.run_case("success", user, automatic=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("AuthenticationMethods publickey\n", config)
+                self.assertIn("PasswordAuthentication no\n", config)
+                self.assertIn("KbdInteractiveAuthentication no\n", config)
+                self.assertIn("user=" + user + ",addr=", trace)
+                self.assertEqual(trace.count("reload ssh"), 1)
+
+    def test_automatic_confirmation_requires_fresh_matching_key_proof(self):
+        for case in ("old-connection", "multiplexed", "password", "wrong-user", "wrong-key", "key-prefix", "journal-error"):
+            with self.subTest(case=case):
+                result, config, trace, original = self.run_case(case, automatic=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(config, original)
+                self.assertEqual(trace, "")
+                self.assertIn("configuration inchangee", result.stderr.lower())
+
     def test_restore_on_validation_or_reload_failure(self):
         for case in ("syntax-error", "effective-error", "bad-pubkey", "bad-methods",
                      "bad-password", "bad-keyboard", "reload-error"):
             with self.subTest(case=case):
-                result, config, trace, original = self.run_case(case)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual(config, original)
-                self.assertIn("reload ssh", trace)
+                for automatic in (False, True):
+                    result, config, trace, original = self.run_case(case, automatic=automatic)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(config, original)
+                    self.assertIn("reload ssh", trace)
 
 
 class MandatorySSHValidationTest(unittest.TestCase):
-    def run_gate(self, inputs, exists="yes"):
+    def run_gate(self, inputs, exists="yes", proof="yes", journal="yes"):
         source = (ROOT / "Radio/deploy-vps.sh").read_text(encoding="utf-8")
         start = source.index("require_secure_admin_ssh(){")
         gate = source[start:source.index("\nconfirm_install(){", start)]
@@ -124,26 +155,36 @@ read(){
 }
 test_helper(){
   [[ "$SUDO_USER" == ops-admin_2 ]] || return 1
-  [[ "$1" == '192.0.2.10 50000 192.0.2.20 2222' ]]
+  [[ "$*" == '--after-cursor fixture-cursor 192.0.2.20 2222' ]] || return 1
+  [[ "$TEST_PROOF" == yes ]]
+}
+journalctl(){
+  [[ "$input_index" == 0 ]] || return 1
+  [[ "$*" == '-b -u ssh -n 1 --show-cursor --no-pager -o cat' ]] || return 1
+  [[ "$TEST_JOURNAL" != error ]] || return 1
+  [[ "$TEST_JOURNAL" != empty ]] || return 0
+  echo '-- cursor: fixture-cursor'
 }
 '''
         import shlex
         setup += "\ninputs=(" + " ".join(shlex.quote(value) for value in inputs) + ")\n"
         script = setup + gate + '\nrequire_secure_admin_ssh ops-admin_2 192.0.2.20\necho GATE_PASSED\n'
         return subprocess.run([BASH], input=script, encoding="utf-8", capture_output=True,
-                              env=dict(os.environ, SUDO_USER="root", TEST_HELPER_EXISTS=exists,
+                              env=dict(os.environ, SUDO_USER="root", TEST_HELPER_EXISTS=exists, TEST_PROOF=proof, TEST_JOURNAL=journal,
                                        SSH_CONNECTION="192.0.2.11 50100 192.0.2.20 2222"))
 
     def test_retry_then_confirm_as_selected_user(self):
-        result = self.run_gate(["bad", "192.0.2.10 50000 192.0.2.20 2222"])
+        result = self.run_gate(["non", "oui"])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("GATE_PASSED", result.stdout)
         self.assertIn("-o PasswordAuthentication=no", result.stdout)
         self.assertIn("-p 2222 ops-admin_2@192.0.2.20", result.stdout)
+        self.assertNotIn('echo "$SSH_CONNECTION"', result.stdout)
 
     def test_cannot_continue_without_proof_or_helper(self):
-        for inputs, exists in ((["bad"], "yes"), ([], "no")):
-            result = self.run_gate(inputs, exists)
+        for inputs, exists, proof, journal in ((["oui"], "yes", "no", "yes"), ([], "no", "yes", "yes"),
+                                               (["oui"], "yes", "yes", "error"), (["oui"], "yes", "yes", "empty")):
+            result = self.run_gate(inputs, exists, proof, journal)
             self.assertNotEqual(result.returncode, 0)
             self.assertNotIn("GATE_PASSED", result.stdout)
 
