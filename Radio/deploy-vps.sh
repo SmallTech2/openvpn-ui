@@ -23,6 +23,18 @@ cleanup(){
   [[ -z "$TMP" ]] || rm -rf -- "$TMP"
   return "$status"
 }
+configure_console_keyboard(){
+  local keyboard_configured=false
+  if [[ -s /etc/default/keyboard ]]; then keyboard_configured=true; fi
+  log 'Configuration du clavier console'
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends console-setup keyboard-configuration
+  if ! $keyboard_configured; then
+    dpkg-reconfigure keyboard-configuration
+  fi
+  # Le deploiement peut etre lance en SSH, hors d'une console Linux.
+  setupcon --force
+}
 require_password(){
   local one two
   local LC_ALL=C.UTF-8
@@ -230,10 +242,7 @@ install_radio(){
   printf 'Compte administrateur Linux : %s\n' "$admin_user"
   echo 'Etapes : clavier, mots de passe, cle SSH et identite PKI, puis installation native.'
   confirm_install || { echo 'Installation annulee, aucune modification systeme.'; return 0; }
-  log 'Configuration du clavier : selectionner Francais (AZERTY) dans l assistant'
-  apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends keyboard-configuration
-  dpkg-reconfigure keyboard-configuration
+  configure_console_keyboard
   require_password "Mot de passe du compte $admin_user"; local admin_pw="$REPLY"; unset REPLY
   require_password 'Mot de passe admin OpenVPN UI'; local gui_pw="$REPLY"; unset REPLY
   printf '\nIPv4 publique : %s\nReseau VPN : %s\nServeur VPN : %s\nOrganisation : %s\nEmail : %s\n' "$public_ip" "$net" "$server_ip" "$org" "$email"

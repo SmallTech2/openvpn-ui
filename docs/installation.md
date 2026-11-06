@@ -71,8 +71,15 @@ Le script propose l'IPv4 publique détectée, modifiable, puis demande :
 - Réseau VPN privé CIDR, par exemple `10.77.0.0/16` ou `192.168.42.0/24`.
 - Nom du compte administrateur Linux à créer (`technicien` proposé par défaut).
 - Clé publique SSH, organisation et email de la PKI ; remplacez les valeurs proposées par celles de votre organisation.
-- Après confirmation et configuration interactive de la disposition du clavier :
+- Après confirmation et configuration du clavier console :
   mots de passe du compte Linux créé et de l'administrateur OpenVPN UI.
+
+L'installateur installe `console-setup` et `keyboard-configuration`, puis applique la
+disposition avec `setupcon --force`, y compris depuis une session SSH. Si
+`/etc/default/keyboard` existe déjà et n'est pas vide, sa configuration est réutilisée
+sans nouvel assistant. Sinon, l'assistant permet de choisir le français AZERTY ou
+une autre disposition. Pour changer une configuration existante avant le déploiement,
+utilisez `sudo dpkg-reconfigure keyboard-configuration` si le paquet est déjà installé.
 
 Les deux mots de passe suivent la même règle : huit caractères minimum, aucune limite
 maximale ajoutée par le script, espaces, accents et symboles acceptés sur une ligne,
