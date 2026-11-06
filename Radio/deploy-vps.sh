@@ -4,7 +4,7 @@
 set -Eeuo pipefail
 umask 077
 REPO='SmallTech2/openvpn-ui'
-RELEASE_TAG="${RADIO_RELEASE_TAG:-radio-v2}"
+RELEASE_TAG="${RADIO_RELEASE_TAG:-radio-v2.1}"
 SOURCE_REF="${RADIO_SOURCE_REF:-}"
 # Compatibilite d'un paquet historique ; les nouveaux paquets contiennent le helper corrige.
 SSH_HARDENING_COMMIT='3ec0f9dda3f52b513959cae78527c7bdf239c4c0'
@@ -264,7 +264,7 @@ install_radio(){
   [[ "$compiled_commit" =~ ^[0-9a-f]{40}$ ]] || die 'Commit du binaire invalide.'
   source_commit="$compiled_commit"
   # La version stable reutilise le binaire valide, avec les scripts finalises separement.
-  [[ ! "$RELEASE_TAG" =~ ^radio-v[0-9]+$ || -s "$TMP/bin/deployment-source-commit.txt" ]] || die 'Commit de deploiement absent de la Release stable.'
+  [[ ! "$RELEASE_TAG" =~ ^radio-v[0-9]+([.][0-9]+)*$ || -s "$TMP/bin/deployment-source-commit.txt" ]] || die 'Commit de deploiement absent de la Release stable.'
   if [[ -s "$TMP/bin/deployment-source-commit.txt" ]]; then
     source_commit="$(cat "$TMP/bin/deployment-source-commit.txt")"
     [[ "$source_commit" =~ ^[0-9a-f]{40}$ ]] || die 'Commit du deploiement invalide.'
