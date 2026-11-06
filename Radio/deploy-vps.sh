@@ -241,7 +241,7 @@ install_radio(){
   read -r -p 'Cle SSH PUBLIQUE ED25519 du poste administrateur (obligatoire) : ' pubkey </dev/tty
   [[ "$pubkey" =~ ^ssh-ed25519[[:space:]]+[A-Za-z0-9+/=]+([[:space:]].*)?$ ]] || die 'Cle ED25519 invalide.'
   read -r -p 'Organisation PKI [Radio Bonheur] : ' org </dev/tty; org="${org:-Radio Bonheur}"
-  read -r -p 'Email PKI [contact@radiobonheur.com] : ' email </dev/tty; email="${email:-contact@radiobonheur.com}"
+  read -r -p 'Email PKI de votre organisation (obligatoire) : ' email </dev/tty
   [[ "$org" =~ ^[a-zA-Z0-9\ ._@+-]+$ ]] || die 'Organisation : lettres, chiffres, espaces et ._@+- uniquement.'
   [[ "$email" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+$ ]] || die 'Email invalide.'
   printf '\nIPv4 publique : %s\nReseau VPN : %s\nServeur VPN : %s (premiere adresse utilisable)\nRelease : %s\n' "$public_ip" "$net" "$server_ip" "$RELEASE_TAG"

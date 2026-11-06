@@ -7,8 +7,36 @@ import (
 
 	"github.com/beego/beego/v2/server/web"
 	clientconfig "github.com/d3vilh/openvpn-server-config/client/client-config"
+	easyrsaconfig "github.com/d3vilh/openvpn-server-config/easyrsa/config"
 	serverconfig "github.com/d3vilh/openvpn-server-config/server/config"
 )
+
+func TestRadioPKIEmail(t *testing.T) {
+	oldNetwork := web.AppConfig.DefaultString("RadioVpnNetwork", "")
+	oldIP := web.AppConfig.DefaultString("RadioPublicIP", "")
+	oldEmail := web.AppConfig.DefaultString("RadioPKIEmail", "")
+	t.Cleanup(func() {
+		web.AppConfig.Set("RadioVpnNetwork", oldNetwork)
+		web.AppConfig.Set("RadioPublicIP", oldIP)
+		web.AppConfig.Set("RadioPKIEmail", oldEmail)
+	})
+	web.AppConfig.Set("RadioVpnNetwork", "10.3.0.0/16")
+	web.AppConfig.Set("RadioPublicIP", "203.0.113.7")
+	for _, email := range []string{"", "pki@example.org", "vpn+admin@example.net"} {
+		web.AppConfig.Set("RadioPKIEmail", email)
+		var config easyrsaconfig.Config
+		if err := ApplyRadioEasyRSAConfig(&config); err != nil {
+			t.Fatal(err)
+		}
+		expected := email
+		if expected == "" {
+			expected = "contact@example.org"
+		}
+		if config.EasyRSAReqEmail != expected {
+			t.Fatalf("PKI email: got %q, want %q", config.EasyRSAReqEmail, expected)
+		}
+	}
+}
 
 func TestRadioDeploymentDefaults(t *testing.T) {
 	oldNetwork := web.AppConfig.DefaultString("RadioVpnNetwork", "")

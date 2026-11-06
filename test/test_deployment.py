@@ -51,6 +51,9 @@ class DeploymentInitialization(unittest.TestCase):
                 self.assertEqual(server_row["redirectgw"], "")
                 self.assertEqual(client_row["serveraddress"], "203.0.113.7")
                 self.assertEqual(client_row["redirectgateway"], "")
+                rsa_row = {k.replace("_", "").lower(): v for k, v in rows["easyrsaconfig"].items()}
+                self.assertEqual(rsa_row["easyrsareqemail"], "test@example.org")
+                self.assertIn('set_var EASYRSA_REQ_EMAIL    "test@example.org"', (root / "rsa/pki/vars").read_text())
                 self.assertIn('"FR"', (root / "rsa/pki/vars").read_text())
                 # Les erreurs importantes doivent bien produire un statut non nul.
                 (root / "db/data.db").unlink()

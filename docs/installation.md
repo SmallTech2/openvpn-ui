@@ -77,6 +77,9 @@ Le script propose l'IPv4 publique détectée, modifiable, puis demande :
 - Après confirmation et configuration du clavier console :
   mots de passe du compte Linux créé et de l'administrateur OpenVPN UI.
 
+L'adresse email de la PKI est obligatoire et doit être renseignée par l'utilisateur.
+Aucune adresse réelle de l'auteur du projet n'est proposée par défaut.
+
 L'installateur installe `console-setup` et `keyboard-configuration`, puis applique la
 disposition avec `setupcon --force`, y compris depuis une session SSH. Si
 `/etc/default/keyboard` existe déjà et n'est pas vide, sa configuration est réutilisée

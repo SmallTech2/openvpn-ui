@@ -73,7 +73,7 @@ func ApplyRadioEasyRSAConfig(c *easyrsaconfig.Config) error {
 	c.EasyRSAReqCountry = "FR"
 	c.EasyRSAReqProvince, c.EasyRSAReqCity = "BR", "Pleneuf-Val-Andre"
 	c.EasyRSAReqOrg = web.AppConfig.DefaultString("RadioPKIOrganization", "Radio Bonheur")
-	c.EasyRSAReqEmail = web.AppConfig.DefaultString("RadioPKIEmail", "contact@radiobonheur.com")
+	c.EasyRSAReqEmail = web.AppConfig.DefaultString("RadioPKIEmail", "contact@example.org")
 	c.EasyRSAReqOu = "VPN " + subnet.IP.String()
 	return nil
 }
