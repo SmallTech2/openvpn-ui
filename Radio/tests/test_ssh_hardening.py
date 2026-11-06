@@ -104,5 +104,71 @@ class SSHHardeningTest(unittest.TestCase):
                 self.assertIn("reload ssh", trace)
 
 
+class MandatorySSHValidationTest(unittest.TestCase):
+    def run_gate(self, inputs, exists="yes"):
+        source = (ROOT / "Radio/deploy-vps.sh").read_text(encoding="utf-8")
+        start = source.index("require_secure_admin_ssh(){")
+        gate = source[start:source.index("\nconfirm_install(){", start)]
+        gate = gate.replace("/dev/tty", "/dev/null")
+        gate = gate.replace("[[ -x /usr/local/bin/radio-secure-ssh ]]", '[[ "$TEST_HELPER_EXISTS" == yes ]]')
+        gate = gate.replace("/usr/local/bin/radio-secure-ssh", "test_helper")
+        setup = r'''
+set -eu
+log(){ :; }
+die(){ echo "$*" >&2; exit 1; }
+input_index=0
+read(){
+  (( input_index < ${#inputs[@]} )) || return 1
+  printf -v "${@: -1}" '%s' "${inputs[input_index]}"
+  input_index=$((input_index+1))
+}
+test_helper(){
+  [[ "$SUDO_USER" == ops-admin_2 ]] || return 1
+  [[ "$1" == '192.0.2.10 50000 192.0.2.20 2222' ]]
+}
+'''
+        import shlex
+        setup += "\ninputs=(" + " ".join(shlex.quote(value) for value in inputs) + ")\n"
+        script = setup + gate + '\nrequire_secure_admin_ssh ops-admin_2 192.0.2.20\necho GATE_PASSED\n'
+        return subprocess.run([BASH], input=script, encoding="utf-8", capture_output=True,
+                              env=dict(os.environ, SUDO_USER="root", TEST_HELPER_EXISTS=exists,
+                                       SSH_CONNECTION="192.0.2.11 50100 192.0.2.20 2222"))
+
+    def test_retry_then_confirm_as_selected_user(self):
+        result = self.run_gate(["bad", "192.0.2.10 50000 192.0.2.20 2222"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("GATE_PASSED", result.stdout)
+        self.assertIn("-o PasswordAuthentication=no", result.stdout)
+        self.assertIn("-p 2222 ops-admin_2@192.0.2.20", result.stdout)
+
+    def test_cannot_continue_without_proof_or_helper(self):
+        for inputs, exists in ((["bad"], "yes"), ([], "no")):
+            result = self.run_gate(inputs, exists)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn("GATE_PASSED", result.stdout)
+
+    def test_gate_before_vpn_initialization(self):
+        source = (ROOT / "Radio/deploy-vps.sh").read_text(encoding="utf-8")
+        self.assertLess(source.index('  require_secure_admin_ssh "$admin_user" "$public_ip"'),
+                        source.index("./openvpn-ui -initialize-only"))
+        self.assertIn('install -m 755 "$TMP/src/Radio/scripts/secure-ssh.sh" /usr/local/bin/radio-secure-ssh', source)
+        self.assertNotIn("printf 'PubkeyAuthentication yes\\nPasswordAuthentication yes\\n'", source)
+
+    def test_existing_ssh_fragment_is_preserved_before_key_proof(self):
+        source = (ROOT / "Radio/deploy-vps.sh").read_text(encoding="utf-8")
+        start = source.index("  if [[ ! -e /etc/ssh/sshd_config.d/00-radio.conf ]]")
+        snippet = source[start:source.index("\n  /usr/sbin/sshd -t", start)]
+        snippet = snippet.replace("/etc/ssh/sshd_config.d/00-radio.conf", '"$TEST_CONFIG"')
+        with tempfile.TemporaryDirectory() as directory:
+            config = pathlib.Path(directory) / "00-radio.conf"
+            for original in (None, "PasswordAuthentication no\nKbdInteractiveAuthentication no\n"):
+                if original is not None:
+                    config.write_text(original, encoding="utf-8", newline="\n")
+                result = subprocess.run([BASH], input=snippet, encoding="utf-8", capture_output=True,
+                                        env=dict(os.environ, TEST_CONFIG=config.as_posix()))
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(config.read_text(), original or "PubkeyAuthentication yes\n")
+
+
 if __name__ == "__main__":
     unittest.main()

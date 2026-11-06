@@ -23,9 +23,10 @@ compatibilité des chemins de déploiement.
 
 Version stable : **[radio-v1](https://github.com/SmallTech2/openvpn-ui/releases/tag/radio-v1)**.
 
-Le script de `main` permet de choisir le nom du compte administrateur Linux lors de
-l'installation. Cette évolution n'est pas incluse dans le tag stable `radio-v1` ;
-le guide distingue les deux versions.
+Le script de `main` permet de choisir le compte administrateur Linux et exige la
+validation d'une nouvelle connexion SSH par clé avant de poursuivre le déploiement.
+Ces évolutions préparent `radio-v2` et doivent encore être validées par une installation
+complète sur Debian 13. Le tag stable `radio-v1` reste inchangé ; le guide distingue les versions.
 
 Prévoyez un serveur vierge Debian 13 x86_64/AMD64, une IPv4 publique fixe, un accès SSH
 interactif avec droits root/sudo et la clé publique ED25519 de votre poste administrateur.

@@ -6,6 +6,8 @@ umask 077
 REPO='SmallTech2/openvpn-ui'
 RELEASE_TAG="${RADIO_RELEASE_TAG:-radio-v1}"
 SOURCE_REF="${RADIO_SOURCE_REF:-}"
+# Helper corrige fige separement : radio-v1 reste inchangee jusqu'a la future radio-v2.
+SSH_HARDENING_COMMIT='3ec0f9dda3f52b513959cae78527c7bdf239c4c0'
 INSTALL_ROOT='/opt/openvpn-ui-runtime'
 PREPARATION_STATE='/var/lib/radio-vpn/debian-upgrade-boot-id'
 TMP=''
@@ -122,6 +124,28 @@ sys.exit(0 if any(
     if (( attempt < 10 )); then sleep 1; fi
   done
   return 1
+}
+require_secure_admin_ssh(){
+  local admin_user="$1" public_ip="$2" connection ssh_port
+  [[ -x /usr/local/bin/radio-secure-ssh ]] || die 'Commande /usr/local/bin/radio-secure-ssh absente ou non executable.'
+  ssh_port=$(awk '{print $4}' <<< "${SSH_CONNECTION:-}")
+  if [[ ! "$ssh_port" =~ ^[0-9]+$ ]]; then
+    ssh_port=$(/usr/sbin/sshd -T | awk '$1=="port" && !found {print $2; found=1}')
+  fi
+  [[ "$ssh_port" =~ ^[0-9]+$ ]] || die 'Port SSH introuvable pour la validation par cle.'
+  log 'Validation SSH par cle obligatoire avant la suite de l installation'
+  echo 'Garder cette session ouverte. Depuis un AUTRE terminal du poste administrateur :'
+  printf 'ssh -o ControlMaster=no -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no -p %s %s@%s\n' "$ssh_port" "$admin_user" "$public_ip"
+  echo 'Ajouter -i CHEMIN_CLE_PRIVEE si necessaire. Ne jamais copier la cle privee sur le VPS.'
+  echo 'Dans la nouvelle session, executer : echo "$SSH_CONNECTION"'
+  echo 'La garder ouverte et copier les quatre valeurs affichees ci-dessous.'
+  while :; do
+    read -r -p 'SSH_CONNECTION de la nouvelle session administrateur : ' connection </dev/tty || die 'Validation SSH interrompue ; installation non terminee.'
+    if SUDO_USER="$admin_user" /usr/local/bin/radio-secure-ssh "$connection"; then
+      return 0
+    fi
+    echo 'Durcissement non confirme : corriger le probleme puis verifier une nouvelle connexion par cle.'
+  done
 }
 confirm_install(){
   local answer
@@ -262,6 +286,9 @@ install_radio(){
     [[ -s "$TMP/src/Radio/config/$f" ]] || die "Modele absent : $f"
   done
   for f in static views swagger; do [[ -d "$TMP/bin/$f" ]] || die "Ressources UI absentes : $f"; done
+  fetch "https://raw.githubusercontent.com/$REPO/$SSH_HARDENING_COMMIT/Radio/scripts/secure-ssh.sh" \
+    "$TMP/src/Radio/scripts/secure-ssh.sh"
+  bash -n "$TMP/src/Radio/scripts/secure-ssh.sh"
 
   log "Compte $admin_user, sudo et preparation SSH"
   useradd -m -U -d "$admin_home" -s /bin/bash "$admin_user"
@@ -271,14 +298,16 @@ install_radio(){
   install -m 600 -o "$admin_user" -g "$admin_user" "$TMP/admin.pub" "$admin_home/.ssh/authorized_keys"
   install -d -m 755 /etc/ssh/sshd_config.d
   install -d -m 755 /run/sshd
-  printf 'PubkeyAuthentication yes\nPasswordAuthentication yes\n' > /etc/ssh/sshd_config.d/00-radio.conf
+  # Ne pas rouvrir les mots de passe si la configuration Debian les interdit deja.
+  if [[ ! -e /etc/ssh/sshd_config.d/00-radio.conf ]]; then
+    printf 'PubkeyAuthentication yes\n' > /etc/ssh/sshd_config.d/00-radio.conf
+  fi
   /usr/sbin/sshd -t
   systemctl enable --now ssh
   systemctl reload ssh
-  # Adapter le script fige de la Release au compte choisi, sans modifier la Release.
-  sed -i -e "s|/home/technicien/|$admin_home/|g" -e "s|user=technicien,|user=$admin_user,|g" \
-    "$TMP/src/Radio/scripts/secure-ssh.sh"
-  install -m 700 "$TMP/src/Radio/scripts/secure-ssh.sh" /usr/local/sbin/radio-secure-ssh
+  install -d -m 755 /usr/local/bin
+  install -m 755 "$TMP/src/Radio/scripts/secure-ssh.sh" /usr/local/bin/radio-secure-ssh
+  require_secure_admin_ssh "$admin_user" "$public_ip"
 
   log 'Installation du runtime et generation synchronisee de la base GUI et des configurations'
   install -d -m 755 "$INSTALL_ROOT" "$INSTALL_ROOT/conf" /opt/scripts /etc/openvpn/config \
@@ -338,12 +367,7 @@ install_radio(){
   FIREWALL_PENDING=false
   rm -rf -- /run/radio-firewall-backup
 
-  # Aucun mot de passe SSH n'est desactive sans preuve d'une connexion avec la cle fournie.
-  if ! /usr/local/sbin/radio-secure-ssh "${SSH_CONNECTION:-}"; then
-    echo 'SSH : cle installee, mots de passe conserves tant que l acces par cle n est pas confirme.'
-    printf 'Depuis une connexion %s par cle : sudo radio-secure-ssh "$SSH_CONNECTION"\n' "$admin_user"
-  fi
-  printf 'release_tag=%s\nrelease_source_commit=%s\nbinary_source_commit=%s\npublic_ip=%s\nnetwork=%s\n' "$RELEASE_TAG" "$source_commit" "$compiled_commit" "$public_ip" "$net" > /etc/radio-vpn-deployed
+  printf 'release_tag=%s\nrelease_source_commit=%s\nbinary_source_commit=%s\nssh_hardening_source_commit=%s\npublic_ip=%s\nnetwork=%s\n' "$RELEASE_TAG" "$source_commit" "$compiled_commit" "$SSH_HARDENING_COMMIT" "$public_ip" "$net" > /etc/radio-vpn-deployed
   log 'Installation terminee : OpenVPN actif, UI protegee, CRL planifiee.'
   echo "GUI depuis le VPN : http://$server_ip:8080"
   echo "Tunnel SSH : ssh -L 8080:127.0.0.1:8080 $admin_user@$public_ip"

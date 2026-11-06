@@ -26,7 +26,8 @@ curl --fail --location --proto '=https' --proto-redir '=https' \
 sudo bash deploy-vps.sh
 ```
 
-Pour utiliser le **choix interactif du compte Linux**, téléchargez plutôt le script de `main` :
+Pour utiliser le **choix du compte Linux et la validation SSH obligatoire** prévus pour
+la future `radio-v2`, téléchargez plutôt le script de `main` :
 
 ```sh
 curl --fail --location --proto '=https' --proto-redir '=https' \
@@ -36,7 +37,8 @@ sudo bash deploy-vps.sh
 ```
 
 Cette évolution concerne les nouvelles installations depuis `main`. Le tag `radio-v1`
-reste figé et crée toujours le compte `technicien`. Aucun compte existant n'est renommé.
+reste figé et crée toujours le compte `technicien`. Le parcours corrigé doit encore être
+validé sur Debian 13 vierge avant publication de `radio-v2`. Aucun compte existant n'est renommé.
 
 Au premier lancement, une confirmation précède `apt-get update`, `apt-get full-upgrade`
 (en conservant les fichiers de configuration locaux) et `apt-get autoremove --purge`.
@@ -63,6 +65,8 @@ Les deux mots de passe suivent la même règle : huit caractères minimum, aucun
 maximale ajoutée par le script, espaces, accents et symboles acceptés sur une ligne,
 saisie masquée et confirmation. Ils ne sont pas affichés dans le récapitulatif.
 Une seconde confirmation précède l'installation VPN.
+Avec le script de `main`, une validation obligatoire dans une seconde session SSH
+intervient ensuite, après création du compte et avant la configuration du VPN : voir ci-dessous.
 
 Les réseaux RFC1918 sont acceptés de `/16` à `/29`, limites de la directive serveur OpenVPN
 avec `tun`. Une adresse d'hôte à la place de l'adresse réseau et les chevauchements
@@ -84,18 +88,59 @@ ou à un groupe est refusé pour éviter de modifier un compte existant.
 
 Dans les exemples SSH ci-dessous, remplacez `UTILISATEUR_LINUX` par le nom choisi.
 Avec le script stable `radio-v1`, ce nom reste `technicien`.
-Il dispose d'un répertoire personnel, d'un shell Bash, de sudo avec mot de passe
+Le compte dispose d'un répertoire personnel, de Bash, de sudo avec mot de passe
 et de la clé fournie. La configuration SSH est validée avant rechargement.
-Les mots de passe SSH ne sont désactivés qu'après preuve, dans le journal du démarrage,
-d'une connexion avec cette clé. Sinon ils restent actifs.
 
-Après connexion avec la clé du poste, la commande suivante peut terminer ce durcissement :
+### Validation obligatoire avec le script de main
 
-```sh
-sudo radio-secure-ssh "$SSH_CONNECTION"
+Le script ne force plus `PasswordAuthentication yes` pendant la préparation :
+il conserve le réglage existant tant que l'accès par clé n'est pas prouvé.
+Il installe et vérifie la commande `/usr/local/bin/radio-secure-ssh`, puis attend :
+
+1. Gardez la session d'installation ouverte. Depuis un **autre terminal de votre poste**,
+   utilisez la commande SSH affichée par le script pour vous connecter avec le compte créé.
+   Elle impose une nouvelle authentification par clé, sans réutiliser une session multiplexée
+   ni accepter de mot de passe SSH. Ajoutez `-i CHEMIN_CLE_PRIVEE` si nécessaire.
+2. Dans cette nouvelle session, exécutez `echo "$SSH_CONNECTION"` et gardez-la ouverte.
+3. Copiez les quatre valeurs affichées dans la demande de l'installateur.
+
+L'installateur vérifie dans le journal du démarrage courant une authentification
+`publickey` pour **ce compte, cette connexion et l'empreinte de la clé installée**.
+Une simple confirmation ou une connexion par mot de passe ne suffit pas.
+Sans preuve, aucun mot de passe n'est désactivé et l'installation ne continue pas.
+
+Après cette preuve, le helper impose les valeurs suivantes et les contrôle avec
+`sshd -t`, puis `sshd -T`, globalement et dans le contexte complet de la connexion
+(compte, IP source, IP locale et port local), y compris les règles `Match` applicables :
+
+```text
+pubkeyauthentication yes
+authenticationmethods publickey
+passwordauthentication no
+kbdinteractiveauthentication no
 ```
 
-Garder la session ouverte et vérifier une nouvelle connexion avant de la fermer.
+Seul un rechargement de `ssh` est demandé ; les sessions ouvertes sont conservées.
+Une erreur de syntaxe, de configuration effective ou de rechargement provoque la restauration
+du fichier précédent et une nouvelle tentative de validation. L'installateur ne déclare
+pas l'installation terminée sans réussite de cette étape.
+Vérifiez une nouvelle connexion après durcissement avant de fermer les sessions conservées.
+
+La commande reste disponible pour un contrôle ou un nouveau durcissement ultérieur,
+depuis la session par clé du compte administrateur :
+
+```sh
+sudo /usr/local/bin/radio-secure-ssh "$SSH_CONNECTION"
+```
+
+Elle est exécutée automatiquement par l'installateur pendant l'étape obligatoire ;
+ce n'est plus une opération facultative à penser à lancer après installation.
+
+### Différence avec radio-v1
+
+Le script figé de `radio-v1` pouvait laisser l'authentification par mot de passe active
+si son durcissement final n'aboutissait pas. La correction ci-dessus est propre à `main` ;
+elle ne modifie pas la Release ni les serveurs déjà installés.
 
 ## Accès à OpenVPN UI
 
@@ -227,5 +272,5 @@ conservées dans le dépôt, avec `go.mod`, `go.sum` et `vendor/`.
 Les paquets système restent fournis par les miroirs Debian et peuvent évoluer.
 
 La documentation courante est maintenue sur `main`. Pour la version stable, téléchargez
-le script de `radio-v1` ; pour le nom de compte interactif, utilisez celui de `main` comme
+le script de `radio-v1` ; pour le compte interactif et le parcours SSH corrigé, utilisez celui de `main` comme
 indiqué plus haut. Le tag et les fichiers de la Release `radio-v1` restent figés.
