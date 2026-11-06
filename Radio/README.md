@@ -10,6 +10,3 @@ Ce dossier conserve les chemins nécessaires au déploiement :
 - `package-release.sh` : création du paquet du binaire, des ressources et de la documentation.
 - [scripts/](scripts/README.md) : opérations appelées par l'interface et le déploiement.
 - [config/](config/README.md) : modèles de configuration et unités systemd.
-
-Les tests sont regroupés dans `test/` à la racine du dépôt. Aucun script de déploiement
-ni modèle de configuration n'a changé de chemin.
