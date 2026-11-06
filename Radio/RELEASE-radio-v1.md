@@ -1,25 +1,28 @@
-Version stable du deploiement natif sur Debian 13 AMD64 : OpenVPN CE,
-OpenVPN UI, Easy-RSA, systemd et nftables. Aucun Docker ni compilation sur le VPS.
+# Version stable radio-v1
 
-La recette reelle Infomaniak a ete validee le 6 novembre 2026 : installation vierge,
-deux clients a IP fixes, connexions simultanees, communication interclients,
-Internet habituel conserve, tunnel SSH vers l'UI et fonctionnement apres reboot.
+[radio-v1](https://github.com/SmallTech2/openvpn-ui/releases/tag/radio-v1) fournit
+le déploiement natif sur Debian 13 AMD64 : OpenVPN Community Edition,
+OpenVPN UI, Easy-RSA, systemd et nftables, sans Docker ni compilation sur le serveur.
 
-Le deploiement valide est `db5b79d24ceb57eeee864e3ec15783ffba51fc91`.
-Le tag `radio-v1` ajoute uniquement le gel de version, la documentation et les metadonnees
-de publication ; le comportement applicatif valide est conserve.
+## Fonctionnement validé
 
-Le binaire de `radio-build-test3` est reutilise sans recompilation :
+Les validations réelles rapportées couvrent :
 
-- Sources du binaire : `684151fb3a0ad27e392f79e617cb649583c4e8ff` (`source-commit.txt`).
-- SHA-256 du binaire : `5e5255d176839be76df6d08fd373dd62fc915fd86bb2ffb90ad9bfe34d8b53b8`.
-- Sources des scripts et modeles figes : commit du tag `radio-v1` (`deployment-source-commit.txt`).
-- Le ZIP est reconstitue avec ce binaire inchange et les fichiers Radio finalises ;
-  son empreinte figure dans `radio-openvpn-ui-linux-amd64.zip.sha256`.
+- Installation automatisée depuis un serveur Debian 13 vierge.
+- Fonctionnement d'OpenVPN, de l'interface Web, de systemd et de nftables.
+- Création de clients à IP fixes, connexion simultanée et communication interclients.
+- Conservation de l'accès Internet habituel des clients.
+- Redémarrage du serveur et reconnexion des clients.
+- Révocation d'un certificat avec refus de reconnexion.
+- Renouvellement de la CRL et persistance de la révocation après renouvellement et redémarrage.
 
-Installation et exploitation : [Radio/README.md](https://github.com/SmallTech2/openvpn-ui/blob/radio-v1/Radio/README.md).
-Le telechargement du script doit utiliser `radio-v1`, jamais `main`.
+## Fichiers et traçabilité
 
-Restent a valider sur le VPS reel : revocation avec refus de reconnexion,
-renouvellement effectif de la CRL et persistance des revocations apres regeneration/reboot.
-Ces operations n'ont pas ete executees pendant cette finalisation.
+La Release conserve le binaire validé, le paquet de déploiement et leurs empreintes SHA-256.
+Le paquet identifie séparément les sources du binaire (`source-commit.txt`) et les
+sources des scripts et modèles (`deployment-source-commit.txt`). Les sources et les
+dépendances Go sont disponibles dans le dépôt.
+
+La documentation d'utilisation est maintenue dans le [guide principal](README.md)
+sur `main`. Le téléchargement du script utilise toujours le tag `radio-v1`.
+Cette actualisation documentaire ne modifie ni le tag ni les fichiers de la Release.
