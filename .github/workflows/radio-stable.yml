@@ -98,7 +98,7 @@ jobs:
                   assert archive.read(name) == pathlib.Path(name).read_bytes(), name
           PY
           printf 'Compilation et tests : https://github.com/%s/actions/runs/%s\n' "$GH_REPO" "$RUN_ID" > "$RUNNER_TEMP/radio-v2.2-notes.md"
-          printf '\nCommit : %s\n\nCertificats revoques masques, compte Linux configurable, validation automatique d une nouvelle connexion SSH par cle sans recopie, clavier console applique avec setupcon --force et documentation dans docs/.\n\nFiltrage nftables conserve. Recette complete sur Debian 13 vierge restant a effectuer pour valider definitivement cette installation.\n' "$SOURCE_COMMIT" >> "$RUNNER_TEMP/radio-v2.2-notes.md"
+          printf '\nCommit : %s\n\nCertificats revoques masques, compte Linux configurable, validation automatique d une nouvelle connexion SSH par cle sans recopie, clavier console applique avec setupcon --force, email PKI demande sans adresse reelle par defaut et documentation dans docs/.\n\nFiltrage nftables conserve. Recette complete sur Debian 13 vierge restant a effectuer pour valider definitivement cette installation.\n' "$SOURCE_COMMIT" >> "$RUNNER_TEMP/radio-v2.2-notes.md"
       - name: Publish radio-v2.2 from verified artifact
         env:
           GH_TOKEN: ${{ github.token }}
