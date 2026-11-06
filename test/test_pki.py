@@ -26,7 +26,7 @@ class PKILifecycle(unittest.TestCase):
             (ovpn / "config/easy-rsa.vars").write_text(
                 'set_var EASYRSA_DN "cn_only"\nset_var EASYRSA_REQ_CN "Radio Test CA"\n'
                 'set_var EASYRSA_KEY_SIZE 2048\nset_var EASYRSA_CRL_DAYS 180\n')
-            client = (ROOT / "Radio/config/client.conf.tpl").read_text().replace("@PUBLIC_IP@", "203.0.113.7")
+            client = (ROOT / "Radio/config/openvpn-client-config.tpl").read_text().replace("{{ .ServerAddress }}", "203.0.113.7")
             (ovpn / "config/client.conf").write_text(client)
             env = dict(os.environ, OPENVPN_UI_CONFIG=str(root / "app.conf"), EASYRSA_BATCH="1",
                        EASYRSA_CERT_EXPIRE="1", EASYRSA_REQ_EMAIL="test@example.org", TFA_NAME="none")

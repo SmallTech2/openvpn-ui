@@ -21,7 +21,7 @@ compatibilité des chemins de déploiement.
 
 ## Version stable et démarrage rapide
 
-La version stable officielle est **[radio-v1](https://github.com/SmallTech2/openvpn-ui/releases/tag/radio-v1)**.
+La version stable officielle est **[radio-v2](https://github.com/SmallTech2/openvpn-ui/releases/tag/radio-v2)**.
 Utilisez sa référence figée pour installer le logiciel ; une branche de développement
 ne remplace pas une version publiée et validée.
 
@@ -31,14 +31,15 @@ Les accès SSH et UDP 1194 doivent être autorisés par le pare-feu de l'héberg
 
 ```sh
 curl --fail --location --proto '=https' --proto-redir '=https' \
-  https://raw.githubusercontent.com/SmallTech2/openvpn-ui/radio-v1/Radio/deploy-vps.sh \
+  https://raw.githubusercontent.com/SmallTech2/openvpn-ui/radio-v2/Radio/deploy-vps.sh \
   -o deploy-vps.sh
 sudo bash deploy-vps.sh
 ```
 
 Après la préparation Debian et le redémarrage, reconnectez-vous et relancez la même
 commande `sudo bash deploy-vps.sh` depuis le répertoire du script téléchargé.
-Le compte Linux créé par cette référence est `technicien`.
+Le script demande le nom du compte Linux à créer (`technicien` proposé par défaut)
+et impose la validation d’une nouvelle connexion SSH par clé avant de poursuivre.
 
 Consultez les [guides dans docs/](docs/README.md) : [installation](docs/installation.md),
 [administration](docs/administration.md), [sécurité](docs/security.md) et
@@ -47,20 +48,23 @@ comme stables qu'après leur validation complète et leur publication.
 
 ## Validation et limites
 
-La version stable officielle a été validée sur Debian 13 vierge : installation, interface Web,
+Les vérifications déjà réalisées sur un serveur Debian 13 de recette couvrent : installation, interface Web,
 services systemd et nftables, deux clients à IP fixes, communication interclients,
 Internet habituel conservé et reconnexion après redémarrage. La révocation avec refus
 de reconnexion, le renouvellement de la CRL et la persistance des révocations après
 renouvellement et redémarrage ont également été validés.
 
-Ces résultats ne constituent pas une validation définitive des règles de transfert réseau,
-encore en cours d'analyse ; voir le [périmètre du filtrage documenté](docs/security.md#filtrage-entrant-avec-nftables).
+Le filtrage entrant et les deux accès à l'interface ont été vérifiés. Dans la configuration
+contrôlée, le routage IP du noyau est désactivé et OpenVPN assure la communication
+interclients avec `client-to-client` ; voir le [périmètre documenté](docs/security.md#routage-du-noyau-et-communication-interclients).
 
 Le déploiement fourni cible IPv4 et AMD64. Les sous-réseaux privés acceptés vont de
 `/16` à `/29`, limites du mode serveur OpenVPN utilisé. Les autres architectures,
 IPv6 et les fonctions facultatives non décrites dans le guide ne font pas partie de
 ce périmètre validé. Le script installe un serveur vierge ; il ne migre pas une PKI existante.
-Les paquets Debian peuvent évoluer indépendamment de la Release.
+Les paquets Debian peuvent évoluer indépendamment de la Release. Une nouvelle installation
+complète depuis Debian 13 vierge reste à réaliser pour confirmer définitivement le paquet
+actuellement publié, notamment le parcours SSH et son intégration au déploiement.
 
 ## Licence et crédits
 

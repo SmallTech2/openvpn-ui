@@ -83,6 +83,9 @@ jobs:
           mkdir "$RUNNER_TEMP/radio-package"
           unzip -q dist/radio-openvpn-ui-linux-amd64.zip -d "$RUNNER_TEMP/radio-package"
           (cd "$RUNNER_TEMP/radio-package"; sha256sum -c SHA256SUMS)
+          cp "$RUNNER_TEMP/radio-package/openvpn-ui.sha256" dist/
+          cp "$RUNNER_TEMP/radio-package/source-commit.txt" dist/
+          cp "$RUNNER_TEMP/radio-package/deployment-source-commit.txt" dist/
       - name: Publish build artifact for validation
         uses: actions/upload-artifact@v4
         with:
@@ -90,6 +93,10 @@ jobs:
           path: |
             dist/radio-openvpn-ui-linux-amd64.zip
             dist/radio-openvpn-ui-linux-amd64.zip.sha256
+            dist/openvpn-ui
+            dist/openvpn-ui.sha256
+            dist/source-commit.txt
+            dist/deployment-source-commit.txt
           if-no-files-found: error
           retention-days: 30
 

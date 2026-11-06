@@ -41,7 +41,7 @@ class ProfileAssembly(unittest.TestCase):
             tls = "-----BEGIN OpenVPN Static key V1-----\n" + "\n".join(secrets.token_hex(16) for _ in range(16)) + "\n-----END OpenVPN Static key V1-----\n"
             (rsa / "pki/ta.key").write_text(tls)
             (root / "app.conf").write_text(f'EasyRsaPath = "{rsa.as_posix()}"\nOpenVpnPath = "{ovpn.as_posix()}"\n')
-            (ovpn / "config/client.conf").write_text((ROOT / "Radio/config/client.conf.tpl").read_text().replace("@PUBLIC_IP@", "203.0.113.7"))
+            (ovpn / "config/client.conf").write_text((ROOT / "Radio/config/openvpn-client-config.tpl").read_text().replace("{{ .ServerAddress }}", "203.0.113.7"))
             result = subprocess.run([BASH, (ROOT / "Radio/scripts/write-client-profile.sh").as_posix(), "studio"],
                                     env=env, text=True, capture_output=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

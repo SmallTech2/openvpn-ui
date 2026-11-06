@@ -88,8 +88,34 @@ depuis Internet**. Son accès est permis localement sur le VPS ou depuis l'inter
 Le management OpenVPN reste local sur `127.0.0.1:2080`.
 
 Cette politique décrit l'accès aux services du VPS, dans la chaîne `input`.
-**Les règles de transfert réseau (`forward`) et le routage VPN restent en cours d'analyse ;
-elles ne sont pas présentées ici comme définitivement validées.**
+Les vérifications réelles ont confirmé SSH par clé, UDP 1194, le blocage public de TCP 8080,
+les deux accès à l'interface, le ping et le refus par défaut des autres ports entrants.
+
+## Routage du noyau et communication interclients
+
+Dans la configuration vérifiée, le routage IP du noyau est désactivé :
+
+```ini
+net.ipv4.ip_forward = 0
+net.ipv6.conf.all.forwarding = 0
+```
+
+La chaîne nftables `forward` conserve sa politique `accept`. Elle n'assure donc pas,
+à elle seule, un refus des transferts : c'est la désactivation du routage du noyau qui
+empêche ce serveur de servir de routeur IP entre réseaux dans cette configuration.
+La communication entre clients VPN utilise la directive OpenVPN `client-to-client`.
+Elle ne nécessite pas d'activer le routage IP du noyau pour cet usage.
+
+Ces paramètres sont des valeurs constatées, pas des réglages imposés par l'installateur.
+Vérifiez-les sur chaque nouvelle image serveur :
+
+```sh
+sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding
+```
+
+Les règles sont conservées pour cet usage précis : elles ne constituent pas un pare-feu
+universel pour tous les usages. L'ajout d'un rôle de routeur, d'un accès à d'autres réseaux
+ou l'activation du forwarding impose une analyse distincte du routage et du filtrage.
 
 ## Accès à OpenVPN UI par tunnel SSH
 

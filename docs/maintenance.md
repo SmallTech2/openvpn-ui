@@ -50,6 +50,7 @@ sudo tail -n 100 /var/log/openvpn/openvpn.log
 ip -j -4 address show dev tun0
 sudo ss -lunp
 sudo nft list ruleset
+sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding
 sudo /usr/sbin/sshd -t
 sudo cat /etc/radio-vpn-deployed
 ```

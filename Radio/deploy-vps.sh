@@ -4,9 +4,9 @@
 set -Eeuo pipefail
 umask 077
 REPO='SmallTech2/openvpn-ui'
-RELEASE_TAG="${RADIO_RELEASE_TAG:-radio-v1}"
+RELEASE_TAG="${RADIO_RELEASE_TAG:-radio-v2}"
 SOURCE_REF="${RADIO_SOURCE_REF:-}"
-# Helper corrige fige separement : radio-v1 reste inchangee jusqu'a la future radio-v2.
+# Compatibilite d'un paquet historique ; les nouveaux paquets contiennent le helper corrige.
 SSH_HARDENING_COMMIT='3ec0f9dda3f52b513959cae78527c7bdf239c4c0'
 INSTALL_ROOT='/opt/openvpn-ui-runtime'
 PREPARATION_STATE='/var/lib/radio-vpn/debian-upgrade-boot-id'
@@ -264,7 +264,7 @@ install_radio(){
   [[ "$compiled_commit" =~ ^[0-9a-f]{40}$ ]] || die 'Commit du binaire invalide.'
   source_commit="$compiled_commit"
   # La version stable reutilise le binaire valide, avec les scripts finalises separement.
-  [[ "$RELEASE_TAG" != radio-v1 || -s "$TMP/bin/deployment-source-commit.txt" ]] || die 'Commit de deploiement absent de la Release stable.'
+  [[ ! "$RELEASE_TAG" =~ ^radio-v[0-9]+$ || -s "$TMP/bin/deployment-source-commit.txt" ]] || die 'Commit de deploiement absent de la Release stable.'
   if [[ -s "$TMP/bin/deployment-source-commit.txt" ]]; then
     source_commit="$(cat "$TMP/bin/deployment-source-commit.txt")"
     [[ "$source_commit" =~ ^[0-9a-f]{40}$ ]] || die 'Commit du deploiement invalide.'
@@ -286,8 +286,12 @@ install_radio(){
     [[ -s "$TMP/src/Radio/config/$f" ]] || die "Modele absent : $f"
   done
   for f in static views swagger; do [[ -d "$TMP/bin/$f" ]] || die "Ressources UI absentes : $f"; done
-  fetch "https://raw.githubusercontent.com/$REPO/$SSH_HARDENING_COMMIT/Radio/scripts/secure-ssh.sh" \
-    "$TMP/src/Radio/scripts/secure-ssh.sh"
+  if [[ "$RELEASE_TAG" == radio-v1 ]]; then
+    fetch "https://raw.githubusercontent.com/$REPO/$SSH_HARDENING_COMMIT/Radio/scripts/secure-ssh.sh" \
+      "$TMP/src/Radio/scripts/secure-ssh.sh"
+  else
+    SSH_HARDENING_COMMIT="$source_commit"
+  fi
   bash -n "$TMP/src/Radio/scripts/secure-ssh.sh"
 
   log "Compte $admin_user, sudo et preparation SSH"
