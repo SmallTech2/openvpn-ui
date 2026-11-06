@@ -53,6 +53,9 @@ Internet habituel conservé et reconnexion après redémarrage. La révocation a
 de reconnexion, le renouvellement de la CRL et la persistance des révocations après
 renouvellement et redémarrage ont également été validés.
 
+Ces résultats ne constituent pas une validation définitive des règles de transfert réseau,
+encore en cours d'analyse ; voir le [périmètre du filtrage documenté](docs/security.md#filtrage-entrant-avec-nftables).
+
 Le déploiement fourni cible IPv4 et AMD64. Les sous-réseaux privés acceptés vont de
 `/16` à `/29`, limites du mode serveur OpenVPN utilisé. Les autres architectures,
 IPv6 et les fonctions facultatives non décrites dans le guide ne font pas partie de

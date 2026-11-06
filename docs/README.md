@@ -8,7 +8,7 @@ Les guides ci-dessous restent indépendants de son numéro.
 
 - [Installation](installation.md) : prérequis, téléchargement publié, redémarrage et paramètres.
 - [Administration](administration.md) : interface Web, tunnel SSH, clients à IP fixes et révocation.
-- [Sécurité](security.md) : compte Linux, accès par clé, vérification du durcissement SSH et protection réseau.
+- [Sécurité](security.md) : filtrage entrant nftables, durcissement SSH et accès à l’interface par tunnel SSH ou depuis le VPN.
 - [Maintenance](maintenance.md) : CRL, services, diagnostic et reconstruction.
 - [Captures de l'interface d'origine](screenshots.md) : illustrations de l'interface.
 

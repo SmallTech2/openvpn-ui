@@ -8,8 +8,8 @@ Les exemples de réseaux sont fictifs. Adaptez-les à votre installation.
 - Session SSH interactive, commande `ip` (paquet `iproute2`) et `curl` pour le téléchargement.
 - IPv4 publique fixe, accès HTTPS sortant aux miroirs Debian et à GitHub.
 - Clé SSH **publique ED25519** du poste administrateur. Ne pas fournir la clé privée.
-- Autoriser le port SSH utilisé et UDP 1194 dans le pare-feu de l'hébergeur.
-  Ne pas ouvrir TCP 8080 sur Internet.
+- Autoriser le port SSH utilisé (TCP 22 par défaut) et UDP 1194 dans le pare-feu de l'hébergeur.
+  Ne pas ouvrir TCP 8080 sur Internet ; voir la [politique de filtrage](security.md#filtrage-entrant-avec-nftables).
 - Choisir un sous-réseau privé qui ne chevauche pas les réseaux des clients et du VPS.
 
 ## Télécharger la référence publiée

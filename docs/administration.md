@@ -6,18 +6,13 @@ Remplacez `UTILISATEUR_LINUX` par le compte créé par l'installateur.
 
 ## Accès à OpenVPN UI
 
-Le compte UI est `admin`, avec le mot de passe saisi. Depuis le VPN :
-`http://ADRESSE_SERVEUR_VPN:8080`.
-Depuis le poste administrateur, ouvrir un tunnel :
+Connectez-vous avec le compte Web `admin` et le mot de passe saisi à l'installation.
+Le [guide de sécurité](security.md) centralise les deux méthodes d'accès :
 
-```sh
-ssh -N -L 127.0.0.1:8080:127.0.0.1:8080 UTILISATEUR_LINUX@IP_PUBLIQUE_DU_SERVEUR
-```
+- [Tunnel SSH, sans connexion OpenVPN](security.md#accès-à-openvpn-ui-par-tunnel-ssh).
+- [Adresse privée du serveur, avec une connexion VPN active](security.md#accès-à-openvpn-ui-depuis-le-vpn).
 
-Ajoutez `-p PORT_SSH` à la commande si vous n'utilisez pas le port SSH 22.
-Puis ouvrir `http://127.0.0.1:8080`. Le management OpenVPN reste sur `127.0.0.1:2080`.
-L'UI écoute sur TCP 8080 ; c'est nftables qui bloque son accès public. Ne pas supprimer
-ces règles ni démarrer l'UI sans cette protection.
+Le même guide décrit le filtrage nftables qui protège l'interface.
 
 ## Clients, IP fixes et communication
 
