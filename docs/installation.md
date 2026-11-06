@@ -12,11 +12,41 @@ Les exemples de réseaux sont fictifs. Adaptez-les à votre installation.
   Ne pas ouvrir TCP 8080 sur Internet ; voir la [politique de filtrage](security.md#filtrage-entrant-avec-nftables).
 - Choisir un sous-réseau privé qui ne chevauche pas les réseaux des clients et du VPS.
 
-## Télécharger la référence publiée
+## Préparer le téléchargement
 
-Utilisez la commande du [README principal](../README.md#version-stable-et-démarrage-rapide).
-Elle fixe la référence du script et le paquet associé ; ne remplacez pas cette référence
-par une branche de développement. Aucun téléchargement de version future n'est nécessaire.
+Connectez-vous en SSH au VPS Debian 13 vierge avec un compte disposant des droits sudo.
+Installez l'outil de téléchargement :
+
+```bash
+sudo apt update
+sudo apt install -y curl
+```
+
+Si vous êtes connecté directement en tant que `root`, exécutez les commandes de ce guide
+sans le préfixe `sudo`.
+
+## Télécharger et lancer l'installateur stable
+
+Depuis un répertoire conservé après redémarrage, par exemple votre répertoire personnel :
+
+```bash
+cd ~
+curl --fail --location --proto '=https' --proto-redir '=https' \
+  https://raw.githubusercontent.com/SmallTech2/openvpn-ui/radio-v2.1/Radio/deploy-vps.sh \
+  -o deploy-vps.sh
+```
+
+Cette commande télécharge le script du tag figé correspondant à la Release stable
+indiquée dans le [README principal](../README.md#version-stable-et-démarrage-rapide).
+Le script télécharge ensuite le paquet de cette même Release et vérifie ses empreintes.
+Ne remplacez pas le tag de l'URL par `main`. En cas d'échec du téléchargement, corrigez
+l'erreur avant de poursuivre.
+
+Après un téléchargement réussi, lancez :
+
+```bash
+sudo bash deploy-vps.sh
+```
 
 Conservez le fichier téléchargé pendant toute l'installation, y compris pour la relance
 après redémarrage. Ne le téléchargez pas à nouveau entre ces deux étapes.
@@ -39,8 +69,7 @@ pour traverser le redémarrage.
 Le script propose l'IPv4 publique détectée, modifiable, puis demande :
 
 - Réseau VPN privé CIDR, par exemple `10.77.0.0/16` ou `192.168.42.0/24`.
-- Si l’installateur le propose, nom du compte administrateur Linux ; sinon le compte
-  fixé par le script est indiqué dans le README de la référence publiée.
+- Nom du compte administrateur Linux à créer (`technicien` proposé par défaut).
 - Clé publique SSH, organisation et email de la PKI ; remplacez les valeurs proposées par celles de votre organisation.
 - Après confirmation et configuration interactive de la disposition du clavier :
   mots de passe du compte Linux créé et de l'administrateur OpenVPN UI.
@@ -49,8 +78,9 @@ Les deux mots de passe suivent la même règle : huit caractères minimum, aucun
 maximale ajoutée par le script, espaces, accents et symboles acceptés sur une ligne,
 saisie masquée et confirmation. Ils ne sont pas affichés dans le récapitulatif.
 Une seconde confirmation précède l'installation VPN.
-Lorsque l'installateur propose une validation dans une seconde session SSH, suivez-la
-avant de poursuivre. Dans tous les cas, vérifiez l'accès par clé et le durcissement
+L'installateur impose la validation d'une nouvelle connexion par clé dans une seconde
+session SSH avant de poursuivre. Gardez la session d'installation ouverte et suivez
+les instructions affichées. Vérifiez l'accès par clé et le durcissement
 [selon le guide de sécurité](security.md#vérifier-laccès-par-clé).
 
 Les réseaux RFC1918 sont acceptés de `/16` à `/29`, limites de la directive serveur OpenVPN

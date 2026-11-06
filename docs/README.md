@@ -1,8 +1,8 @@
 # Documentation OpenVPN UI
 
-La version stable officielle et la commande de téléchargement figée sont indiquées
-uniquement dans le [README principal](../README.md#version-stable-et-démarrage-rapide).
-Les guides ci-dessous restent indépendants de son numéro.
+La version stable officielle est indiquée dans le
+[README principal](../README.md#version-stable-et-démarrage-rapide).
+Le guide d'installation reprend sa commande de téléchargement figée.
 
 ## Guides utilisateur
 
