@@ -32,6 +32,19 @@ require_password(){
     REPLY="$one"; return
   done
 }
+require_admin_user(){
+  local name
+  while :; do
+    read -r -p 'Nom du compte administrateur Linux [technicien] : ' name </dev/tty
+    name="${name:-technicien}"
+    [[ "$name" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo 'Nom attendu : 1 a 32 caracteres, minuscules/chiffres/_/-, debutant par une lettre ou _.'; continue; }
+    if getent passwd "$name" >/dev/null || getent group "$name" >/dev/null; then
+      echo 'Ce nom correspond deja a un compte ou un groupe. Choisir un nouveau nom.'
+      continue
+    fi
+    REPLY="$name"; return 0
+  done
+}
 fetch(){ curl --fail --silent --show-error --location --retry 3 --proto '=https' --proto-redir '=https' --tlsv1.2 "$1" -o "$2"; }
 
 ipv4_number(){
@@ -145,7 +158,7 @@ prepare_debian(){
 }
 
 install_radio(){
-  local public_ip="${1:-}" net="${2:-}" pubkey org email detected='' routes mask server_ip prefix
+  local public_ip="${1:-}" net="${2:-}" pubkey org email admin_user admin_home detected='' routes mask server_ip prefix
   [[ ! -e "$INSTALL_ROOT" && ! -e /etc/openvpn/server.conf && ! -e /etc/openvpn/pki ]] || die 'Installation existante detectee. Refus de remplacer.'
   [[ ! -f /etc/radio-vpn-deployed ]] || die 'Deploiement deja effectue.'
   [[ "$RELEASE_TAG" =~ ^[a-zA-Z0-9._-]+$ ]] || die 'Nom de Release invalide.'
@@ -181,6 +194,8 @@ install_radio(){
     fi
     net=''
   done
+  require_admin_user; admin_user="$REPLY"; unset REPLY
+  admin_home="/home/$admin_user"
   read -r -p 'Cle SSH PUBLIQUE ED25519 du poste administrateur (obligatoire) : ' pubkey </dev/tty
   [[ "$pubkey" =~ ^ssh-ed25519[[:space:]]+[A-Za-z0-9+/=]+([[:space:]].*)?$ ]] || die 'Cle ED25519 invalide.'
   read -r -p 'Organisation PKI [Radio Bonheur] : ' org </dev/tty; org="${org:-Radio Bonheur}"
@@ -188,15 +203,17 @@ install_radio(){
   [[ "$org" =~ ^[a-zA-Z0-9\ ._@+-]+$ ]] || die 'Organisation : lettres, chiffres, espaces et ._@+- uniquement.'
   [[ "$email" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+$ ]] || die 'Email invalide.'
   printf '\nIPv4 publique : %s\nReseau VPN : %s\nServeur VPN : %s (premiere adresse utilisable)\nRelease : %s\n' "$public_ip" "$net" "$server_ip" "$RELEASE_TAG"
+  printf 'Compte administrateur Linux : %s\n' "$admin_user"
   echo 'Etapes : clavier, mots de passe, cle SSH et identite PKI, puis installation native.'
   confirm_install || { echo 'Installation annulee, aucune modification systeme.'; return 0; }
   log 'Configuration du clavier : selectionner Francais (AZERTY) dans l assistant'
   apt-get update
   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends keyboard-configuration
   dpkg-reconfigure keyboard-configuration
-  require_password 'Mot de passe technicien'; local technician_pw="$REPLY"; unset REPLY
+  require_password "Mot de passe du compte $admin_user"; local admin_pw="$REPLY"; unset REPLY
   require_password 'Mot de passe admin OpenVPN UI'; local gui_pw="$REPLY"; unset REPLY
   printf '\nIPv4 publique : %s\nReseau VPN : %s\nServeur VPN : %s\nOrganisation : %s\nEmail : %s\n' "$public_ip" "$net" "$server_ip" "$org" "$email"
+  printf 'Compte administrateur Linux : %s\n' "$admin_user"
   confirm_install || { echo 'Installation annulee apres configuration du clavier.'; return 0; }
 
   log 'Dependances Debian (sans compilation sur le VPS)'
@@ -246,18 +263,21 @@ install_radio(){
   done
   for f in static views swagger; do [[ -d "$TMP/bin/$f" ]] || die "Ressources UI absentes : $f"; done
 
-  log 'Compte technicien, sudo et preparation SSH'
-  if ! id -u technicien >/dev/null 2>&1; then useradd -m -s /bin/bash technicien; fi
-  usermod -aG sudo technicien
-  printf 'technicien:%s\n' "$technician_pw" | chpasswd; unset technician_pw
-  install -d -m 700 -o technicien -g technicien /home/technicien/.ssh
-  install -m 600 -o technicien -g technicien "$TMP/admin.pub" /home/technicien/.ssh/authorized_keys
+  log "Compte $admin_user, sudo et preparation SSH"
+  useradd -m -U -d "$admin_home" -s /bin/bash "$admin_user"
+  usermod -aG sudo "$admin_user"
+  printf '%s:%s\n' "$admin_user" "$admin_pw" | chpasswd; unset admin_pw
+  install -d -m 700 -o "$admin_user" -g "$admin_user" "$admin_home/.ssh"
+  install -m 600 -o "$admin_user" -g "$admin_user" "$TMP/admin.pub" "$admin_home/.ssh/authorized_keys"
   install -d -m 755 /etc/ssh/sshd_config.d
   install -d -m 755 /run/sshd
   printf 'PubkeyAuthentication yes\nPasswordAuthentication yes\n' > /etc/ssh/sshd_config.d/00-radio.conf
   /usr/sbin/sshd -t
   systemctl enable --now ssh
   systemctl reload ssh
+  # Adapter le script fige de la Release au compte choisi, sans modifier la Release.
+  sed -i -e "s|/home/technicien/|$admin_home/|g" -e "s|user=technicien,|user=$admin_user,|g" \
+    "$TMP/src/Radio/scripts/secure-ssh.sh"
   install -m 700 "$TMP/src/Radio/scripts/secure-ssh.sh" /usr/local/sbin/radio-secure-ssh
 
   log 'Installation du runtime et generation synchronisee de la base GUI et des configurations'
@@ -321,12 +341,12 @@ install_radio(){
   # Aucun mot de passe SSH n'est desactive sans preuve d'une connexion avec la cle fournie.
   if ! /usr/local/sbin/radio-secure-ssh "${SSH_CONNECTION:-}"; then
     echo 'SSH : cle installee, mots de passe conserves tant que l acces par cle n est pas confirme.'
-    echo 'Depuis une connexion technicien par cle : sudo radio-secure-ssh "$SSH_CONNECTION"'
+    printf 'Depuis une connexion %s par cle : sudo radio-secure-ssh "$SSH_CONNECTION"\n' "$admin_user"
   fi
   printf 'release_tag=%s\nrelease_source_commit=%s\nbinary_source_commit=%s\npublic_ip=%s\nnetwork=%s\n' "$RELEASE_TAG" "$source_commit" "$compiled_commit" "$public_ip" "$net" > /etc/radio-vpn-deployed
   log 'Installation terminee : OpenVPN actif, UI protegee, CRL planifiee.'
   echo "GUI depuis le VPN : http://$server_ip:8080"
-  echo "Tunnel SSH : ssh -L 8080:127.0.0.1:8080 technicien@$public_ip"
+  echo "Tunnel SSH : ssh -L 8080:127.0.0.1:8080 $admin_user@$public_ip"
   echo "Creer les clients avec une IPv4 fixe du reseau $net. Aucun redirect-gateway."
 }
 

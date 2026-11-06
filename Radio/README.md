@@ -26,6 +26,18 @@ curl --fail --location --proto '=https' --proto-redir '=https' \
 sudo bash deploy-vps.sh
 ```
 
+Pour utiliser le **choix interactif du compte Linux**, téléchargez plutôt le script de `main` :
+
+```sh
+curl --fail --location --proto '=https' --proto-redir '=https' \
+  https://raw.githubusercontent.com/SmallTech2/openvpn-ui/main/Radio/deploy-vps.sh \
+  -o deploy-vps.sh
+sudo bash deploy-vps.sh
+```
+
+Cette évolution concerne les nouvelles installations depuis `main`. Le tag `radio-v1`
+reste figé et crée toujours le compte `technicien`. Aucun compte existant n'est renommé.
+
 Au premier lancement, une confirmation précède `apt-get update`, `apt-get full-upgrade`
 (en conservant les fichiers de configuration locaux) et `apt-get autoremove --purge`.
 Le VPS redémarre ensuite. Après reconnexion SSH, relancer dans le même répertoire :
@@ -42,9 +54,10 @@ pour traverser le redémarrage.
 Le script propose l'IPv4 publique détectée, modifiable, puis demande :
 
 - Réseau VPN privé CIDR, par exemple `10.77.0.0/16` ou `192.168.42.0/24`.
+- Avec le script de `main`, nom du compte administrateur Linux à créer (`technicien` proposé par défaut).
 - Clé publique SSH, organisation et email de la PKI ; remplacez les valeurs proposées par celles de votre organisation.
 - Après confirmation et configuration interactive de la disposition du clavier :
-  mots de passe du compte `technicien` et de l'administrateur OpenVPN UI.
+  mots de passe du compte Linux choisi et de l'administrateur OpenVPN UI.
 
 Les deux mots de passe suivent la même règle : huit caractères minimum, aucune limite
 maximale ajoutée par le script, espaces, accents et symboles acceptés sur une ligne,
@@ -64,8 +77,13 @@ utilise les sources de déploiement du commit inscrit dans ce paquet. Il n'utili
 
 ## Compte administrateur Linux et SSH
 
-Le compte Linux créé par le script porte le nom fixe **`technicien`**. Ce nom n'est pas
-un paramètre interactif ; utilisez-le dans les commandes SSH et sudo ci-dessous.
+Le script de `main` demande le nom du compte Linux ; appuyez sur Entrée pour conserver
+`technicien`. Le nom doit contenir de 1 à 32 caractères : lettres minuscules, chiffres,
+`_` ou `-`, avec une lettre ou `_` en premier. Un nom correspondant déjà à un utilisateur
+ou à un groupe est refusé pour éviter de modifier un compte existant.
+
+Dans les exemples SSH ci-dessous, remplacez `UTILISATEUR_LINUX` par le nom choisi.
+Avec le script stable `radio-v1`, ce nom reste `technicien`.
 Il dispose d'un répertoire personnel, d'un shell Bash, de sudo avec mot de passe
 et de la clé fournie. La configuration SSH est validée avant rechargement.
 Les mots de passe SSH ne sont désactivés qu'après preuve, dans le journal du démarrage,
@@ -86,7 +104,7 @@ Le compte UI est `admin`, avec le mot de passe saisi. Depuis le VPN :
 Depuis le poste administrateur, ouvrir un tunnel :
 
 ```sh
-ssh -N -L 127.0.0.1:8080:127.0.0.1:8080 technicien@IP_PUBLIQUE_DU_SERVEUR
+ssh -N -L 127.0.0.1:8080:127.0.0.1:8080 UTILISATEUR_LINUX@IP_PUBLIQUE_DU_SERVEUR
 ```
 
 Ajoutez `-p PORT_SSH` à la commande si vous n'utilisez pas le port SSH 22.
@@ -208,5 +226,6 @@ et modèles (`deployment-source-commit.txt`). Les sources et les dépendances Go
 conservées dans le dépôt, avec `go.mod`, `go.sum` et `vendor/`.
 Les paquets système restent fournis par les miroirs Debian et peuvent évoluer.
 
-La documentation courante est maintenue sur `main`. Le script d'installation se télécharge
-toujours depuis `radio-v1` ; le tag et les fichiers de cette Release restent figés.
+La documentation courante est maintenue sur `main`. Pour la version stable, téléchargez
+le script de `radio-v1` ; pour le nom de compte interactif, utilisez celui de `main` comme
+indiqué plus haut. Le tag et les fichiers de la Release `radio-v1` restent figés.

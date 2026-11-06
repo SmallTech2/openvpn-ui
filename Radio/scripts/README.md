@@ -26,3 +26,8 @@ ne remplace donc pas le parcours complet de création d'un client dans l'interfa
 Conservez la PKI et les profils hors du dépôt public. Ne purgez pas l'index de la CA
 pour supprimer un client : les entrées révoquées restent nécessaires aux futures CRL.
 La planification systemd de la CRL est créée par `../deploy-vps.sh`.
+
+Lors d'une installation depuis le script de `main`, l'installateur adapte les chemins
+et le contexte utilisateur de `secure-ssh.sh` au compte Linux choisi, puis installe
+la commande `/usr/local/sbin/radio-secure-ssh`. Utilisez cette commande depuis la session
+SSH de ce compte ; les scripts de la Release stable restent inchangés.
