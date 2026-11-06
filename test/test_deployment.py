@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import unittest
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 @unittest.skipUnless(os.environ.get("RADIO_TEST_BINARY"), "requires the compiled native binary")

@@ -2,7 +2,7 @@
 
 Ces scripts sont installés dans `/opt/scripts` pour le déploiement et les opérations
 d'administration d'OpenVPN UI.
-Le [guide principal](../README.md) décrit leur utilisation depuis l'interface.
+Le [guide utilisateur](../../docs/README.md) décrit leur utilisation depuis l'interface.
 Les chemins de la PKI et d'OpenVPN sont lus dans
 `/opt/openvpn-ui-runtime/conf/app.conf`. Certains scripts acceptent `OPENVPN_UI_CONFIG`
 pour sélectionner un autre fichier de configuration.
@@ -40,5 +40,5 @@ et `AuthenticationMethods publickey` impose la clé seule. Un échec après modi
 la restauration du fichier précédent. Le helper ne redémarre pas le service SSH.
 
 La version installée doit être lancée avec sudo depuis une session par clé du compte
-administrateur, en lui transmettant `"$SSH_CONNECTION"`. Voir le [guide](../README.md).
+administrateur, en lui transmettant `"$SSH_CONNECTION"`. Voir le [guide de sécurité](../../docs/security.md).
 Cette correction prépare `radio-v2` ; sa validation définitive sur Debian 13 reste à réaliser.

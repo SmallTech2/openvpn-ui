@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import unittest
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 BASH = "C:/Program Files/Git/bin/bash.exe" if os.name == "nt" else "/bin/bash"
 HELPER = ROOT / "Radio/scripts/secure-ssh.sh"
 

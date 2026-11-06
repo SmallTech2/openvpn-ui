@@ -1,7 +1,7 @@
 # Modèles de configuration
 
 Ces fichiers servent au déploiement natif ; ce ne sont pas les configurations actives
-d'un serveur. Le [guide principal](../README.md) décrit l'installation et les chemins
+d'un serveur. Le [guide utilisateur](../../docs/README.md) décrit l'installation et les chemins
 d'exploitation.
 
 | Fichier | Utilisation |
